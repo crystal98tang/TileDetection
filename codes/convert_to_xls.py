@@ -1,19 +1,21 @@
 # -*- coding: utf-8 -*-
-import pandas as pd
 import os
-import cv2
 import time
+
+import cv2
+import pandas as pd
+
 from codes.core.config import cfg
 
 class_name_dic = cfg.class_name_dic
 lable_color = cfg.lable_color
 #
 count_error = [0,0,0,0,0,0,0]
-output_label_img_mode = True
+output_label_img_mode = False
 Statistics_mode = True
 time_start = 0
 rawImgDir='../tcdata/tile_round1_train_20201231/train_imgs/'
-rawLabelFile='../tcdata/tile_round1_train_20201231/train_annos.json'
+rawLabelFile="../tcdata/tile_round1_train_20201231/train_annos.json"
 anno_xls_dir='../user_data/label_xls/'
 anno_label_dir='../user_data/label_img/'
 #
@@ -24,11 +26,12 @@ if not os.path.exists(anno_xls_dir):
 if not os.path.exists(anno_label_dir):
     os.makedirs(anno_label_dir)
 #
-df = pd.read_json(rawLabelFile, orient='records')
+df = pd.read_json(path_or_buf=rawLabelFile, orient='records')
 #
+print(df)
 image_ann={}
 for tup in df.itertuples():
-    name = tup[5]
+    name = tup[1]
     if name not in image_ann:
         image_ann[name] = []
     image_ann[name].append(tup)
@@ -41,8 +44,8 @@ for name in image_ann.keys():
         im = cv2.imread(os.path.join(rawImgDir, name))
     #
     for tup in indexs:
-        category = tup[2]
-        bbox = tup[1]
+        category = tup[4]
+        bbox = tup[5]
         xmin, ymin, xmax, ymax = bbox
         class_name = class_name_dic[str(category)]
         # 统计
