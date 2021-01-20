@@ -57,6 +57,17 @@ def main():
             X_center = (Xmin + Xmax)//2
             #deal with Y
             Y_center = (Ymin + Ymax)//2
+            #相对坐标转换
+            #相对中心点坐标,以patch为边界，左上为0(相对)
+            X_zero_Temp = X_center - patch_size//2
+            Y_zero_Temp = Y_center - patch_size//2
+            #bbox
+            Xmin_patch = Xmin - X_zero_Temp
+            Ymin_patch = Ymin - Y_zero_Temp
+            Xmax_patch = Xmax - X_zero_Temp
+            Ymax_patch = Ymax - Y_zero_Temp
+            list_img_patch = [Xmin_patch,Ymin_patch,Xmax_patch,Ymax_patch]
+
             # cut slice
             img_slice = im[X_center-patch_size//2:X_center+patch_size//2,Y_center-patch_size//2:Y_center+patch_size//2,:]
             # get category
@@ -68,15 +79,15 @@ def main():
             cv2.imwrite(os.path.join('../user_data/Temp_data/train_img',img1+'_'+str(i)+'.bmp'),img_slice)
             # save bbox and category
             #trans into dict
-            train_label = {'name':img1+'_'+str(i),'category':category,'bbox':list_img}
-            train_label1 = [img1+'_'+str(i),category,list_img]
+            train_label = {'name':img1+'_'+str(i),'category':category,'bbox':list_img_patch}
+            train_label1 = [img1+'_'+str(i),category,list_img_patch]
             # data_frame.append(train_label)
             # frame.write(row,0,img1+'_'+i)
             # frame.write(row,1,list_img)
             # frame.write(row,2,category)
             # row = row+1
             if First:
-                with open("../user_data/Temp_data/train.csv","a+") as f:
+                with open("../user_data/Temp_data/train1.csv","a+") as f:
                     file_writer = csv.writer(f)
                     file_writer.writerow(train_label1)
                 # file1_label['name'] = img1+'_'+str(i)
@@ -87,7 +98,7 @@ def main():
             else:
                 # 创建csv
                 file_label = pd.DataFrame.from_dict(data=train_label,orient='index').T
-                file_label.to_csv("../user_data/Temp_data/train.csv",mode='a',index=False)
+                file_label.to_csv("../user_data/Temp_data/train1.csv",mode='a',index=False)
                 First = True
 
 
