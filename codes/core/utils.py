@@ -1,6 +1,12 @@
 import numpy as np
+import csv
+import cv2
+import os
+from tqdm import tqdm
+
 from functools import reduce
 from codes.core.config import cfg
+
 
 #---------------------------------------------------#
 #   获得类和先验框
@@ -120,3 +126,40 @@ def get_random_data(annotation_line, input_shape, max_boxes=100, jitter=.3, hue=
         box_data[:len(box)] = box
 
     return image_data, box_data
+
+
+def read_csv(path):
+    """
+    读取csv
+    :param path: 标签csv文件
+    :return: 返回list
+    """
+    with open(path, "r") as f:
+        f_csv = csv.reader(f)
+        headers = next(f_csv)   # 表头
+        print(headers)
+        lines = [row for row in f_csv if row]   # fixme: 判空条件 待优化后省去
+    return lines
+
+
+def draw(anno_lines, read_path, save_path, type='bmp'):
+    """
+    标记预测框并保存
+    :param anno_lines: 标记索引 list[ 'img_name', 'catagory', bbox=[x1,y1,x2,y2] ]
+    :param read_path: 原始图片路径
+    :param save_path: 处理后保存路径
+    :param type: 图片格式
+    :return: None
+    """
+    for i in tqdm(anno_lines):
+        name, category, bbox = i
+        #
+        im = cv2.imread(os.path.join(read_path, name + '.' + type))
+        class_name = cfg.class_name_dic[str(category)]
+        xmin, ymin, xmax, ymax = list(eval(bbox))
+        # 画框标记
+        cv2.rectangle(im, (int(xmin), int(ymin)), (int(xmax), int(ymax)), cfg.lable_color[str(category)], 2)
+        cv2.putText(im, class_name, (int(xmin), int(ymin) - 15), cv2.FONT_HERSHEY_SIMPLEX, 0.6,
+                    cfg.lable_color[str(category)], 2)
+        # 保存
+        cv2.imwrite(os.path.join(save_path, name + '.' + type), im)

@@ -24,12 +24,19 @@ __C.lable_color                 = {
     "6": (128,0,128)
 }
 
+# Path
+__C.PATH = edict()
+__C.PATH.annotation_path = '../user_data/Temp_data/train1.csv'   # 训练集索引文件路径
+__C.PATH.logs = '../logs/'  # 训练后模型保存路径
+__C.PATH.classes_info = '../user_data/model_data/classes.txt'   # 分类标签文件路径
+__C.PATH.anchors_info = '../user_data/model_data/anchors.txt'   # 锚点文件路径
+__C.PATH.weight_path = '../user_data/model_data/weights.h5'  # 预训练权值文件
+__C.PATH.patch_path = '../user_data/Temp_data/train_img'   # 训练集图片路径
+# Train
 __C.TRAIN                       = edict()
-__C.TRAIN.classes               = '../user_data/model_data/classes.txt' # 分类标签文件
-__C.TRAIN.anchors               = '../user_data/model_data/anchors.txt' # 锚点文件
-__C.TRAIN.weight                = '../user_data/model_data/weights.h5'  # 权值文件
+
 
 __C.TRAIN.batch_size            = 2
-__C.TRAIN.input_size            = (512, 512)
+__C.TRAIN.input_size            = (416, 416)
 __C.TRAIN.lr_init               = 1e-3
 __C.TRAIN.epoch                 = 30
