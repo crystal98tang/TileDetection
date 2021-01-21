@@ -39,10 +39,10 @@ def preprocess_true_boxes(true_boxes, input_shape, anchors, num_classes):
     return y_true
 
 if __name__ == "__main__":
-    # 获取patch图片和标签 TODO:修改路径
-    annotation_path = '.h5'
+    # 获取patch图片和标签
+    annotation_path = cfg.PATH.annotation_path
     # 训练后的模型保存路径
-    log_dir = '../logs/'
+    log_dir = cfg.PATH.logs
     # 权值文件
     weights_path = cfg.TRAIN.weight
     # 输入的shape大小
