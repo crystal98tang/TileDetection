@@ -26,6 +26,9 @@ __C.lable_color                 = {
 
 # Path
 __C.PATH = edict()
+__C.PATH.origin_train_img_path = '../tcdata/tile_round1_train_20201231/train_imgs/'   # 原始训练集
+__C.PATH.origin_train_anno_path = '../tcdata/tile_round1_train_20201231/train_annos.json/'   # 原始训练集
+#
 __C.PATH.annotation_path = '../user_data/Temp_data/train1.csv'   # 训练集索引文件路径
 __C.PATH.logs = '../logs/'  # 训练后模型保存路径
 __C.PATH.classes_info = '../user_data/model_data/classes.txt'   # 分类标签文件路径
