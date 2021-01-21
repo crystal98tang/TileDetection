@@ -2,21 +2,23 @@ import numpy as np
 import csv
 import cv2
 import os
+from PIL import Image
 from tqdm import tqdm
 
 from functools import reduce
 from codes.core.config import cfg
 
 
-#---------------------------------------------------#
+# ---------------------------------------------------#
 #   获得类和先验框
-#---------------------------------------------------#
+# ---------------------------------------------------#
 def get_classes(classes_path):
     '''loads the classes'''
     with open(classes_path) as f:
         class_names = f.readlines()
     class_names = [c.strip() for c in class_names]
     return class_names
+
 
 def get_anchors(anchors_path):
     '''loads the anchors from a file'''
@@ -25,9 +27,11 @@ def get_anchors(anchors_path):
     anchors = [float(x) for x in anchors.split(',')]
     return np.array(anchors).reshape(-1, 2)
 
-#---------------------------------------------------#
-#
-#---------------------------------------------------#
+
+def rand(a=0, b=1):
+    return np.random.rand()*(b-a) + a
+
+
 def compose(*funcs):
     if funcs:
         return reduce(lambda f, g: lambda *a, **kw: g(f(*a, **kw)), funcs)
@@ -35,12 +39,35 @@ def compose(*funcs):
         raise ValueError('Composition of empty sequence not supported.')
 
 
-def get_random_data(annotation_line, input_shape, max_boxes=100, jitter=.3, hue=.1, sat=1.5, val=1.5, random=True):
-    line = annotation_line.split()
-    image = Image.open(line[0])
+def get_data(anno_line, type='bmp'):
+    img_name = anno_line[0] + '.' + type
+    img = cv2.imread(os.path.join(cfg.PATH.patch_path, img_name)) / 255
+    box = list(eval(anno_line[2]))
+    box.append(int(anno_line[1])-1)     # FIXME:注意标记类是1~6
+    return img, box
+
+
+# fixme: 待修改
+def get_random_data(anno_line, input_shape, max_boxes=100, jitter=.3, hue=.1, sat=1.5, val=1.5, random=True, type='bmp'):
+    """
+    训练集数据增强
+    :param annotation_line:
+    :param input_shape:
+    :param max_boxes:
+    :param jitter:
+    :param hue:
+    :param sat:
+    :param val:
+    :param random:
+    :return:
+    """
+    img_name = anno_line[0] + '.' + type
+    image = Image.open(os.path.join(cfg.PATH.patch_path, img_name))
     iw, ih = image.size
     h, w = input_shape
-    box = np.array([np.array(list(map(int, box.split(',')))) for box in line[1:]])
+    box = list(eval(anno_line[2]))
+    box.append(int(anno_line[1])-1)     # FIXME:注意标记类是1~6
+    box = np.array([np.array(box)])     # fixme: 目前是设置的是单张patch只有一个框，后续要修改
 
     if not random:
         # resize image
@@ -163,3 +190,16 @@ def draw(anno_lines, read_path, save_path, type='bmp'):
                     cfg.lable_color[str(category)], 2)
         # 保存
         cv2.imwrite(os.path.join(save_path, name + '.' + type), im)
+
+
+def letterbox_image(image, size):
+    iw, ih = image.size
+    w, h = size
+    scale = min(w/iw, h/ih)
+    nw = int(iw*scale)
+    nh = int(ih*scale)
+
+    image = image.resize((nw,nh), Image.BICUBIC)
+    new_image = Image.new('RGB', size, (128,128,128))
+    new_image.paste(image, ((w-nw)//2, (h-nh)//2))
+    return new_image
