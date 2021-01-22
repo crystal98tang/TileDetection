@@ -29,12 +29,12 @@ __C.PATH = edict()
 __C.PATH.origin_train_img_path = '../tcdata/tile_round1_train_20201231/train_imgs/'   # 原始训练集
 __C.PATH.origin_train_anno_path = '../tcdata/tile_round1_train_20201231/train_annos.json/'   # 原始训练集
 #
-__C.PATH.annotation_path = '../user_data/Temp_data/train1.csv'   # 训练集索引文件路径
+__C.PATH.annotation_path = '../user_data/Temp_data/train2.csv'   # 训练集索引文件路径
 __C.PATH.logs = '../logs/'  # 训练后模型保存路径
 __C.PATH.classes_info = '../user_data/model_data/classes.txt'   # 分类标签文件路径
 __C.PATH.anchors_info = '../user_data/model_data/anchors.txt'   # 锚点文件路径
 __C.PATH.weight_path = '../user_data/model_data/yolo_weights.h5'  # 预训练权值文件
-__C.PATH.patch_path = '../user_data/Temp_data/train_img'   # 训练集图片路径
+__C.PATH.patch_path = '../user_data/Temp_data/train_img2'   # 训练集图片路径
 # Train
 __C.TRAIN = edict()
 

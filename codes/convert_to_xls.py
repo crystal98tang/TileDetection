@@ -26,16 +26,17 @@ if not os.path.exists(anno_xls_dir):
 if not os.path.exists(anno_label_dir):
     os.makedirs(anno_label_dir)
 #
-df = pd.read_json(path_or_buf=rawLabelFile, orient='records')
+df = pd.read_json(path_or_buf=rawLabelFile, orient='records')   # 读原始json
 #
 print(df)
-image_ann={}
+#
+image_ann={}    # { img_name : [label1, label2, ……]}
 for tup in df.itertuples():
-    name = tup[1]
+    name = tup[5]
     if name not in image_ann:
         image_ann[name] = []
-    image_ann[name].append(tup)
-
+    image_ann[name].append(tup)     # 加
+#
 for name in image_ann.keys():
     indexs = image_ann[name]
     height, width = indexs[0][3], indexs[0][4]
@@ -44,8 +45,8 @@ for name in image_ann.keys():
         im = cv2.imread(os.path.join(rawImgDir, name))
     #
     for tup in indexs:
-        category = tup[4]
-        bbox = tup[5]
+        category = tup[2]
+        bbox = tup[1]
         xmin, ymin, xmax, ymax = bbox
         class_name = class_name_dic[str(category)]
         # 统计
