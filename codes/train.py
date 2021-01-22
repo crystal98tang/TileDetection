@@ -249,8 +249,8 @@ if __name__ == "__main__":
     # 解冻后训练
     if True:
         Freeze_epoch = cfg.TRAIN.freeze_epoch
-        Epoch = cfg.TRAIN.epoch
-        batch_size = cfg.TRAIN.batch_size // 2
+        Epoch = cfg.TRAIN.total_epoch
+        batch_size = cfg.TRAIN.batch_size // 4
         learning_rate_base = cfg.TRAIN.lr_normal
         #
         model.compile(optimizer=Adam(lr=learning_rate_base), loss={
