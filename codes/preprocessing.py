@@ -1,9 +1,10 @@
 import cv2
 import os
-import numpy as np
+import datetime
+import tqdm
 import pandas as pd
+import numpy as np
 import csv
-import xlrd
 from codes.core.config import cfg
 
 
@@ -22,34 +23,18 @@ def BBGT_iou(BBGT, imgRect):
     return iou
 
 
-def get_bbox(xls_path):
-    BBGT = []
-    f = pd.read_excel(xls_path)
-    num = len(f['bbox'])
-    for i in range(num):
-        list_img = list(eval(f['bbox'][i]))
-        Xmin, Ymin, Xmax, Ymax = int(list_img[0]), int(list_img[1]), int(list_img[2]), int(list_img[3])
-        category = int(f["category"][i])
-        BBGT.append([Xmin, Ymin, Xmax, Ymax, category])
-    return np.array(BBGT)
-
-
-def split(imgname, dirsrc, dirdst, subsize, gap, iou_thresh=0.3, ext='.bmp'):
+def split(img, imgname, BBGT, dirdst, subsize, gap, iou_thresh=0.3, ext='.bmp'):
     """
+    img:       待裁切图像
     imgname:   待裁切图像名（带扩展名）
-    dirsrc:    待裁切的图像保存目录的上一个目录，默认图像与标注文件在一个文件夹下，图像在images下，标注在labelTxt下，标注文件格式为每行一个gt,
-               格式为xmin,ymin,xmax,ymax,class,想读其他格式自己动手改
-    dirdst:    裁切的图像保存目录的上一个目录，目录下有images,labelTxt两个目录分别保存裁切好的图像或者txt文件，
-               保存的图像和txt文件名格式为 oriname_min_ymin.png(.txt),(xmin,ymin)为裁切图像在原图上的左上点坐标,txt格式和原文件格式相同
+    BBGT:       n个标注框
+    dirdst:    裁切的图像保存目录的上一个目录
     subsize:   裁切图像的尺寸，默认为正方形，想裁切矩形自己动手改
     gap:       相邻行或列的图像重叠的宽度
-    iou_thresh:小于该阈值的BBGT不会保存在对应图像的txt中（在图像过于边缘或与图像无交集）
+    iou_thresh:小于该阈值的BBGT不会保存在对应图像的csv中（在图像过于边缘或与图像无交集）
     ext:       保存图像的格式
     """
-    img = cv2.imread(os.path.join(dirsrc, 'train_imgs', imgname), -1)
-    txt_path = os.path.join(os.path.join(dirsrc, 'label_xls'), imgname.split('.')[0] + '.xls')
     csv_path = os.path.join(dirdst, 'train_anno' + '.csv')
-    BBGT = get_bbox(txt_path)
     img_h, img_w = img.shape[:2]
     top = 0
     reachbottom = False
@@ -88,24 +73,73 @@ def split(imgname, dirsrc, dirdst, subsize, gap, iou_thresh=0.3, ext='.bmp'):
         top += subsize - gap
 
 
-if __name__ == '__main__':
-    import tqdm
+def change_size(read_file):
+    image = cv2.imread(read_file, 1)  # 读取图片
+    img = cv2.medianBlur(image, 5)  # 中值滤波，去除黑色边际中可能含有的噪声干扰
+    b = cv2.threshold(img, 60, 255, cv2.THRESH_BINARY)  # 阈值 >60 转为 255
+    binary_image = b[1]  # 二值图（三通道）
+    binary_image = cv2.cvtColor(binary_image, cv2.COLOR_BGR2GRAY)
+    x = binary_image.shape[0]
+    y = binary_image.shape[1]
+    edges_x = []
+    edges_y = []
+    for i in range(x):
+        for j in range(y):
+            if binary_image[i][j] == 255:
+                edges_x.append(i)
+                edges_y.append(j)
+    left, right = min(edges_x), max(edges_x)  # 左边界 右边界
+    width = right - left  # 宽度
+    bottom, top = min(edges_y), max(edges_y)  # 底部 顶部
+    height = top - bottom  # 高度
 
-    dirsrc = '../tcdata/tile_round1_train_20201231/'  # 待裁剪图像所在目录的上级目录，图像在images文件夹下，标注文件在labelTxt下
-    dirdst = '../user_data/Temp_data/train_img_mult_cutted/'  # 裁剪结果存放目录，格式和原图像目录一样
+    pre1_picture = image[left:left + width, bottom:bottom + height]  # 图片截取 TODO:可能写反了
+    return pre1_picture, left, bottom  # 返回图片数据、截取的顶部和左边界尺寸
+
+
+def run(file_list, image_anno, batch, i):
+    for name in tqdm.tqdm(file_list[batch * i: batch * (i + 1)]):
+        indexs = image_anno[name]
+        #
+        im, cut_x, cut_y = change_size(source_path + name)
+        height, width = im.shape[:2]
+        BBGT = []
+        for tup in indexs:
+            category = tup[2]
+            bbox = tup[1]
+            xmin, ymin, xmax, ymax = bbox
+            xmin, ymin, xmax, ymax = xmin - cut_y, ymin - cut_x, xmax - cut_y, ymax - cut_x     #TODO：可能有问题
+            BBGT.append([int(xmin), int(ymin), int(xmax), int(ymax), int(category)])
+            # 统计
+            if Statistics_mode:
+                count_error[category] += 1
+        split(im, name, np.array(BBGT), cfg.PATH.mult_patch_path, 416, 104)
+
+
+def read_anno_json():
+    df = pd.read_json(path_or_buf=rawLabelFile, orient='records')  # 读原始json
+    image_ann = {}  # { img_name : [label1, label2, ……]}
+    for tup in df.itertuples():
+        name = tup[5]
+        if name not in image_ann:
+            image_ann[name] = []
+        image_ann[name].append(tup)  # 加
+    return image_ann
+
+
+if __name__ == '__main__':
+    source_path = "G:\TileDetection/tcdata/tile_round1_train_20201231/train_imgs/"  # 图片来源路径
+    rawLabelFile = "../tcdata/tile_round1_train_20201231/train_annos.json"
+    dirdst = cfg.PATH.mult_patch_path
+    count_error = [0, 0, 0, 0, 0, 0, 0]
+    output_label_img_mode = False
+    Statistics_mode = True
     if not os.path.exists(dirdst):
         os.mkdir(dirdst)
     if not os.path.exists(os.path.join(dirdst, 'Images')):
         os.mkdir(os.path.join(dirdst, 'Images'))
-    if not os.path.exists(os.path.join(dirdst, 'Anotations')):
-        os.mkdir(os.path.join(dirdst, 'Anotations'))
-
-    subsize = 416
-    gap = 104
-    iou_thresh = 0.4
-    ext = '.bmp'
-    num_thresh = 8
-
-    imgnameList = os.listdir(os.path.join(dirsrc, 'train_imgs'))
-    for imgname in tqdm.tqdm(imgnameList):
-        split(imgname, dirsrc, dirdst, subsize, gap, iou_thresh, ext)
+    file_list = os.listdir(source_path)
+    img_anno = read_anno_json()
+    i = 0
+    batch = 10
+    run(file_list, img_anno, batch, i)

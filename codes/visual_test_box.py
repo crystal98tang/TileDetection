@@ -8,9 +8,9 @@ from codes.core.utils import read_csv, draw
     批量可视化预测框
 """
 if __name__ == '__main__':
-    img_path = cfg.PATH.patch_path  # 原始图片
-    anno_path = cfg.PATH.annotation_path    # 标注索引csv
-    save_path = "../user_data/Temp_data/visual_box2/"    # 可视化检测框-存储目录
+    img_path = "G:/TileDetection/user_data/Temp_data/train_img_mult_cutted/Images/"  # 原始图片
+    anno_path = "G:/TileDetection/user_data\Temp_data/train_img_mult_cutted/train_anno.csv"    # 标注索引csv
+    save_path = "G:/TileDetection/user_data\Temp_data/train_img_mult_cutted/visual_box2/"    # 可视化检测框-存储目录
     #
     if not os.path.exists(save_path):
         os.makedirs(save_path)
