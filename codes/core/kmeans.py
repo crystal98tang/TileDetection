@@ -72,6 +72,9 @@ def kmeans(boxes, k, dist=np.median):
         if (last_clusters == nearest_clusters).all():
             break
 
+        if nearest_clusters.max() == nearest_clusters.min():    # if nearest == 1 error jump out
+            break
+
         for cluster in range(k):
             clusters[cluster] = dist(boxes[nearest_clusters == cluster], axis=0)
 
