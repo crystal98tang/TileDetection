@@ -6,7 +6,7 @@ from PIL import Image
 from tqdm import tqdm
 
 from functools import reduce
-from codes.core.config import cfg
+from core.config import cfg
 
 
 # ---------------------------------------------------#
@@ -29,7 +29,7 @@ def get_anchors(anchors_path):
 
 
 def rand(a=0, b=1):
-    return np.random.rand()*(b-a) + a
+    return np.random.rand() * (b - a) + a
 
 
 def compose(*funcs):
@@ -43,11 +43,10 @@ def get_data(anno_line, type='bmp'):
     img_name = anno_line[0] + '.' + type
     img = cv2.imread(os.path.join(cfg.PATH.patch_path, img_name)) / 255
     box = list(eval(anno_line[2]))
-    box.append(int(anno_line[1])-1)     # FIXME:注意标记类是1~6
+    box.append(int(anno_line[1]) - 1)  # FIXME:注意标记类是1~6
     return img, box
 
 
-# fixme: 待修改
 def get_random_data_mult(anno_file, max_boxes=100, type='bmp'):
     """
     训练集
@@ -99,7 +98,8 @@ def get_random_data_mult(anno_file, max_boxes=100, type='bmp'):
     return image_data, box_data
 
 
-def get_random_data_one(anno_line, input_shape, max_boxes=100, jitter=.3, hue=.1, sat=1.5, val=1.5, random=True, type='bmp'):
+def get_random_data_one(anno_line, input_shape, max_boxes=100, jitter=.3, hue=.1, sat=1.5, val=1.5, random=True,
+                        type='bmp'):
     """
     训练集
     :param annotation_line:
@@ -117,8 +117,8 @@ def get_random_data_one(anno_line, input_shape, max_boxes=100, jitter=.3, hue=.1
     iw, ih = image.size
     h, w = input_shape
     box = list(eval(anno_line[2]))
-    box.append(int(anno_line[1])-1)     # FIXME:注意标记类是1~6
-    box = np.array([np.array(box)])     # fixme: 目前是设置的是单张patch只有一个框，后续要修改
+    box.append(int(anno_line[1]) - 1)  # FIXME:注意标记类是1~6
+    box = np.array([np.array(box)])  # fixme: 目前是设置的是单张patch只有一个框，后续要修改
 
     if not random:
         # resize image
@@ -227,10 +227,10 @@ def draw(list_csv, anno_path, read_path, save_path, type='bmp'):
     :param type: 图片格式
     :return: None
     """
-    for csv in list_csv:
-        anno_lines = read_csv(os.path.join(anno_path, csv.split(".")[0] + '.csv'))     # 读取标注csv
+    for csv in tqdm(list_csv):
+        anno_lines = read_csv(os.path.join(anno_path, csv.split(".")[0] + '.csv'))  # 读取标注csv
         im = cv2.imread(os.path.join(read_path, csv.split(".")[0] + '.' + type))
-        for i in tqdm(anno_lines):
+        for i in anno_lines:
             name, xmin, ymin, xmax, ymax, category = i
             #
             class_name = cfg.class_name_dic[str(category)]
@@ -245,11 +245,11 @@ def draw(list_csv, anno_path, read_path, save_path, type='bmp'):
 def letterbox_image(image, size):
     iw, ih = image.size
     w, h = size
-    scale = min(w/iw, h/ih)
-    nw = int(iw*scale)
-    nh = int(ih*scale)
+    scale = min(w / iw, h / ih)
+    nw = int(iw * scale)
+    nh = int(ih * scale)
 
-    image = image.resize((nw,nh), Image.BICUBIC)
-    new_image = Image.new('RGB', size, (128,128,128))
-    new_image.paste(image, ((w-nw)//2, (h-nh)//2))
+    image = image.resize((nw, nh), Image.BICUBIC)
+    new_image = Image.new('RGB', size, (128, 128, 128))
+    new_image.paste(image, ((w - nw) // 2, (h - nh) // 2))
     return new_image

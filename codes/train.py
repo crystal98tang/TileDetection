@@ -1,17 +1,21 @@
+import sys
+sys.path.append(r'../codes/core/')
+##
 import keras.backend as K
 import numpy as np
 import tensorflow as tf
 import os
+import time
 from keras.backend.tensorflow_backend import set_session
 from keras.layers import Input, Lambda
 from keras.models import Model
 from keras.optimizers import Adam
 from keras.callbacks import (EarlyStopping, ModelCheckpoint, ReduceLROnPlateau,
                              TensorBoard)
-from codes.core.config import cfg
-from codes.core.utils import get_anchors, get_classes, get_data, get_random_data_one, get_random_data_mult, read_csv
-from codes.core.yolov3 import yolo_body
-from codes.core.loss import yolo_loss
+from core.config import cfg
+from core.utils import get_anchors, get_classes, get_random_data_mult, read_csv
+from core.yolov3 import yolo_body
+from core.loss import yolo_loss
 
 
 # ---------------------------------------------------#
@@ -46,7 +50,7 @@ def data_generator(annotation_lines, batch_size, input_shape, anchors, num_class
 #   读入处理并输出y_true
 # ---------------------------------------------------#
 def preprocess_true_boxes(true_boxes, input_shape, anchors, num_classes):
-    # assert (true_boxes[..., 4] < num_classes).all(), 'class id must be less than num_classes'
+    assert (true_boxes[..., 4] < num_classes).all(), 'class id must be less than num_classes'
     # 一共有三个特征层数
     num_layers = len(anchors) // 3
     # -----------------------------------------------------------#
@@ -121,9 +125,7 @@ def preprocess_true_boxes(true_boxes, input_shape, anchors, num_classes):
         anchor_area = anchors[..., 0] * anchors[..., 1]
 
         iou = intersect_area / (box_area + anchor_area - intersect_area)
-        # -----------------------------------------------------------#
-        #   维度是[n,] 感谢 消尽不死鸟 的提醒
-        # -----------------------------------------------------------#
+
         best_anchor = np.argmax(iou, axis=-1)
 
         for t, n in enumerate(best_anchor):
@@ -164,8 +166,6 @@ config.gpu_options.allow_growth = True
 set_session(tf.Session(config=config))
 
 if __name__ == "__main__":
-    # 获取patch图片和标签
-    annotation_path = cfg.PATH.annotation_path
     # 训练后的模型保存路径
     log_dir = cfg.PATH.logs
     # 权值文件
@@ -222,7 +222,7 @@ if __name__ == "__main__":
     # ----------------------------------------------------------------------#
     #   验证集的划分
     val_split = cfg.TRAIN.val_split
-    lines = os.listdir(os.path.join(cfg.PATH.mult_patch_path,"Anotations"))
+    lines = os.listdir(os.path.join(cfg.PATH.mult_patch_path, "Anotations"))
     np.random.seed(10101)
     np.random.shuffle(lines)
     #
@@ -233,7 +233,7 @@ if __name__ == "__main__":
     if True:
         Init_epoch = 0
         Freeze_epoch = cfg.TRAIN.freeze_epoch
-        batch_size = cfg.TRAIN.batch_size
+        batch_size = cfg.TRAIN.batch_size  # 1050==> batchsize=10 // 2070==>batchsize=7
         learning_rate_base = cfg.TRAIN.lr_init
         #
         model.compile(optimizer=Adam(lr=learning_rate_base), loss={
@@ -245,9 +245,12 @@ if __name__ == "__main__":
             steps_per_epoch=max(1, num_train // batch_size),
             validation_data=data_generator(lines[num_train:], batch_size, input_shape, anchors, num_classes,
                                            random=False),
-            validation_steps=max(1, num_val // batch_size), epochs=Freeze_epoch,
+            validation_steps=max(1, int(num_val // batch_size * cfg.TRAIN.true_val)), epochs=Freeze_epoch,
             initial_epoch=Init_epoch, callbacks=[logging, checkpoint, reduce_lr, early_stopping])
-        model.save_weights(log_dir + 'trained_weights_stage_1.h5')
+        # timestamp
+        time_now = time.strftime("_%Y_%m_%d__%H_%M")
+        # save
+        model.save_weights(log_dir + time_now + 'trained_weights_stage_1.h5')
 
     for i in range(freeze_layers): model_body.layers[i].trainable = True
 
@@ -255,7 +258,7 @@ if __name__ == "__main__":
     if True:
         Freeze_epoch = cfg.TRAIN.freeze_epoch
         Epoch = cfg.TRAIN.total_epoch
-        batch_size = cfg.TRAIN.batch_size // 4
+        batch_size = cfg.TRAIN.batch_size // 3  # 1050==> batchsize=2 //2070==>batchsize=7
         learning_rate_base = cfg.TRAIN.lr_normal
         #
         model.compile(optimizer=Adam(lr=learning_rate_base), loss={
@@ -265,10 +268,14 @@ if __name__ == "__main__":
         model.fit_generator(
             data_generator(lines[:num_train], batch_size, input_shape, anchors, num_classes, random=False),
             steps_per_epoch=max(1, num_train // batch_size),
+
             validation_data=data_generator(lines[num_train:], batch_size, input_shape, anchors, num_classes,
                                            random=False),
-            validation_steps=max(1, num_val // batch_size),
+            validation_steps=max(1, int(num_val // batch_size * cfg.TRAIN.true_val)),
             epochs=Epoch,
             initial_epoch=Freeze_epoch,
             callbacks=[logging, checkpoint, reduce_lr, early_stopping])
-        model.save_weights(log_dir + 'last1.h5')
+        # timestamp
+        time_now = time.strftime("_%Y_%m_%d__%H_%M")
+        # save
+        model.save_weights(log_dir + time_now + 'last.h5')
