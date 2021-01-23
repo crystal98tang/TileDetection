@@ -1,5 +1,6 @@
 import tqdm
 import numpy as np
+
 from codes.core.utils import read_csv
 from codes.core.config import cfg
 from codes.core.kmeans import kmeans, avg_iou
@@ -46,6 +47,7 @@ if __name__ == '__main__':
     Ratios:
     [0.83, 0.87, 0.92, 0.93, 1.0, 1.06, 1.11, 1.17, 1.18]
     """
+
     lines = read_csv(cfg.PATH.annotation_path)
     data = patch_load_dataset(lines)
     max_acc = 0

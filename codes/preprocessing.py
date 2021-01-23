@@ -5,7 +5,7 @@ import tqdm
 import pandas as pd
 import numpy as np
 import csv
-from codes.core.config import cfg
+from core.config import cfg
 
 
 def BBGT_iou(BBGT, imgRect):
@@ -43,7 +43,7 @@ def split(img, imgname, BBGT, dirdst, subsize, gap, iou_thresh=0.8, ext='.bmp'):
         if top + subsize >= img_h:
             reachbottom = True
             top = max(img_h - subsize, 0)
-        while not reachright:   # 未到右部边界
+        while not reachright:  # 未到右部边界
             if left + subsize >= img_w:
                 reachright = True
                 left = max(img_w - subsize, 0)
@@ -55,25 +55,33 @@ def split(img, imgname, BBGT, dirdst, subsize, gap, iou_thresh=0.8, ext='.bmp'):
             imgrect = np.array([left, top, left + subsize, top + subsize]).astype('float32')
             ious = BBGT_iou(BBGT[:, :4].astype('float32'), imgrect)
             BBpatch = BBGT[ious > iou_thresh]
+
             if len(BBpatch) > 0:  # abandaon images with 0 bboxes
                 img_name = imgname.split('.')[0]
-                cv2.imwrite(os.path.join(os.path.join(dirdst, 'Images'),
-                                         img_name + '_' + str(left) + '_' + str(top) + ext), imgsplit)
+                save_name = img_name + '_' + str(left) + '_' + str(top)
                 lines = []
                 for bb in BBpatch:
-                    x1, y1, x2, y2, target_id = int(bb[0]) - left, int(bb[1]) - top, int(bb[2]) - left, int(
-                        bb[3]) - top, int(bb[4])
-                    lines.append([img_name+'_'+str(left)+'_'+str(top), x1, y1, x2, y2, target_id])
-                csv_path = os.path.join(dirdst, 'Anotations',
-                                        img_name + '_' + str(left) + '_' + str(top) + '.csv')
-                with open(csv_path, 'w', newline='', encoding='utf-8') as f:
+                    xmin, ymin, xmax, ymax, target_id = int(bb[0]) - left, int(bb[1]) - top, int(bb[2]) - left, \
+                                                        int(bb[3]) - top, int(bb[4])
+                    lines.append([img_name + '_' + str(left) + '_' + str(top), xmin, ymin, xmax, ymax, target_id])
+
+                csv_path = os.path.join(dirdst, 'Anotations', save_name + '.csv')
+                # 存储
+                cv2.imwrite(os.path.join(os.path.join(dirdst, 'Images'), save_name + ext), imgsplit)
+                with open(csv_path, 'w', encoding='utf-8') as f:
                     writer = csv.writer(f)
                     writer.writerows(lines)
+
             left += subsize - gap
         top += subsize - gap
 
 
 def change_size(read_file):
+    """
+    切黑边
+    :param read_file: 图片路径
+    :return: 切后image、所切左边界尺寸、所切上边界尺寸
+    """
     image = cv2.imread(read_file, 1)  # 读取图片
     img = cv2.medianBlur(image, 5)  # 中值滤波，去除黑色边际中可能含有的噪声干扰
     b = cv2.threshold(img, 60, 255, cv2.THRESH_BINARY)  # 阈值 >60 转为 255
@@ -91,12 +99,12 @@ def change_size(read_file):
     v
     col      top
     """
-    for col in img_ary:     # 遍历列
+    for col in img_ary:  # 遍历列
         cnt += 1
         if col.max() == 255:
             edges_x.append(cnt)
     cnt = 0
-    for row in img_ary.T:   # 遍历行
+    for row in img_ary.T:  # 遍历行
         cnt += 1
         if row.max() == 255:
             edges_y.append(cnt)
@@ -122,6 +130,13 @@ def change_size(read_file):
 
 
 def run(file_list, image_anno, batch, i):
+    """
+    处理 原始图片--->Patch
+    :param file_list: 原始训练集图片
+    :param image_anno: 原始标签
+    :param batch: 批处理数量
+    :param i: 第i轮批处理
+    """
     for name in tqdm.tqdm(file_list[batch * i: batch * (i + 1)]):
         indexs = image_anno[name]
         #
@@ -130,13 +145,13 @@ def run(file_list, image_anno, batch, i):
         for tup in indexs:
             bbox, category = tup[1], tup[2]
             xmin, ymin, xmax, ymax = bbox
-            xmin, ymin, xmax, ymax = xmin - cut_y, ymin - cut_x, xmax - cut_y, ymax - cut_x
+            xmin, ymin, xmax, ymax = xmin - cut_y, ymin - cut_x, xmax - cut_y, ymax - cut_x  # 坐标转换
             BBGT.append([int(xmin), int(ymin), int(xmax), int(ymax), int(category)])
         split(im, name, np.array(BBGT), cfg.PATH.mult_patch_path, 416, 208)
 
 
-def read_anno_json():
-    df = pd.read_json(path_or_buf=rawLabelFile, orient='records')  # 读原始json
+def read_anno_json(src):
+    df = pd.read_json(path_or_buf=src, orient='records')  # 读原始json
     image_ann = {}  # { img_name : [label1, label2, ……]}
     for tup in df.itertuples():
         name = tup[5]
@@ -147,8 +162,8 @@ def read_anno_json():
 
 
 if __name__ == '__main__':
-    source_path = cfg.PATH.origin_train_img_path    # "../tcdata/tile_round1_train_20201231/train_imgs/"  # 图片来源路径
-    rawLabelFile = "../tcdata/tile_round1_train_20201231/train_annos.json"
+    source_path = cfg.PATH.origin_train_img_path  # "../tcdata/tile_round1_train_20201231/train_imgs/"  # 图片来源路径
+    rawLabelFile = cfg.PATH.origin_train_anno_path  # "../tcdata/tile_round1_train_20201231/train_annos.json"
     dirdst = cfg.PATH.mult_patch_path
     if not os.path.exists(dirdst):
         os.mkdir(dirdst)
@@ -157,7 +172,7 @@ if __name__ == '__main__':
     if not os.path.exists(os.path.join(dirdst, 'Anotations')):
         os.mkdir(os.path.join(dirdst, 'Anotations'))
     file_list = os.listdir(source_path)
-    img_anno = read_anno_json()
-    i = 0
-    batch = 5387
+    img_anno = read_anno_json(rawLabelFile)
+    i = 1
+    batch = 10
     run(file_list, img_anno, batch, i)

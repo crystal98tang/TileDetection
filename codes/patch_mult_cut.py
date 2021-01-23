@@ -92,7 +92,7 @@ if __name__ == '__main__':
     import tqdm
 
     dirsrc = '../tcdata/tile_round1_train_20201231/'  # 待裁剪图像所在目录的上级目录，图像在images文件夹下，标注文件在labelTxt下
-    dirdst = '../user_data/Temp_data/train_img_mult_cutted/'  # 裁剪结果存放目录，格式和原图像目录一样
+    dirdst = '../user_data/Temp_data/train_img_mult_cutted_total/'  # 裁剪结果存放目录，格式和原图像目录一样
     if not os.path.exists(dirdst):
         os.mkdir(dirdst)
     if not os.path.exists(os.path.join(dirdst, 'Images')):
