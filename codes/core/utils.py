@@ -48,9 +48,60 @@ def get_data(anno_line, type='bmp'):
 
 
 # fixme: 待修改
-def get_random_data(anno_line, input_shape, max_boxes=100, jitter=.3, hue=.1, sat=1.5, val=1.5, random=True, type='bmp'):
+def get_random_data_mult(anno_file, max_boxes=100, type='bmp'):
     """
-    训练集数据增强
+    训练集
+    :param annotation_line:
+    :param max_boxes:
+    :param jitter:
+    :param hue:
+    :param sat:
+    :param val:
+    :param random:
+    :return:
+    """
+    anno_lines = read_csv(os.path.join(os.path.join(cfg.PATH.mult_patch_path, "Anotations"), anno_file))
+    img_name = anno_lines[0][0] + '.' + type
+    image = Image.open(os.path.join(os.path.join(cfg.PATH.mult_patch_path, "Images"), img_name))
+    iw, ih = image.size
+    h, w = cfg.TRAIN.input_size
+    bboxs = []
+    for i in anno_lines:
+        name, xmin, ymin, xmax, ymax, category = i
+        bbox = [int(xmin), int(ymin), int(xmax), int(ymax), int(category) - 1]
+        bboxs.append(bbox)
+    box = np.array([np.array(bbox) for bbox in bboxs])  # TODO:可能会有误
+
+    # resize image
+    scale = min(w / iw, h / ih)
+    nw = int(iw * scale)
+    nh = int(ih * scale)
+    dx = (w - nw) // 2
+    dy = (h - nh) // 2
+    image = image.resize((nw, nh), Image.BICUBIC)
+    new_image = Image.new('RGB', (w, h), (128, 128, 128))
+    new_image.paste(image, (dx, dy))
+    image_data = np.array(new_image, np.float32) / 255
+    # correct boxes
+    box_data = np.zeros((max_boxes, 5))
+    if len(box) > 0:
+        np.random.shuffle(box)
+        box[:, [0, 2]] = box[:, [0, 2]] * nw / iw + dx
+        box[:, [1, 3]] = box[:, [1, 3]] * nh / ih + dy
+        box[:, 0:2][box[:, 0:2] < 0] = 0
+        box[:, 2][box[:, 2] > w] = w
+        box[:, 3][box[:, 3] > h] = h
+        box_w = box[:, 2] - box[:, 0]
+        box_h = box[:, 3] - box[:, 1]
+        box = box[np.logical_and(box_w > 1, box_h > 1)]  # discard invalid box
+        if len(box) > max_boxes: box = box[:max_boxes]
+        box_data[:len(box)] = box
+    return image_data, box_data
+
+
+def get_random_data_one(anno_line, input_shape, max_boxes=100, jitter=.3, hue=.1, sat=1.5, val=1.5, random=True, type='bmp'):
+    """
+    训练集
     :param annotation_line:
     :param input_shape:
     :param max_boxes:
@@ -167,7 +218,7 @@ def read_csv(path):
     return lines
 
 
-def draw(anno_lines, read_path, save_path, type='bmp'):
+def draw(list_csv, anno_path, read_path, save_path, type='bmp'):
     """
     标记预测框并保存
     :param anno_lines: 标记索引 list[ 'img_name','left','top','x1','y1','x2','y2','catagory' ]
@@ -176,17 +227,19 @@ def draw(anno_lines, read_path, save_path, type='bmp'):
     :param type: 图片格式
     :return: None
     """
-    for i in tqdm(anno_lines):
-        name, left, top, xmin, ymin, xmax, ymax, category = i
-        #
-        im = cv2.imread(os.path.join(read_path, name + '_' + left + '_' + top + '.' + type))
-        class_name = cfg.class_name_dic[str(category)]
-        # 画框标记
-        cv2.rectangle(im, (int(xmin), int(ymin)), (int(xmax), int(ymax)), cfg.lable_color[str(category)], 2)
-        cv2.putText(im, class_name, (int(xmin), int(ymin) - 15), cv2.FONT_HERSHEY_SIMPLEX, 0.6,
-                    cfg.lable_color[str(category)], 2)
+    for csv in list_csv:
+        anno_lines = read_csv(os.path.join(anno_path, csv.split(".")[0] + '.csv'))     # 读取标注csv
+        im = cv2.imread(os.path.join(read_path, csv.split(".")[0] + '.' + type))
+        for i in tqdm(anno_lines):
+            name, xmin, ymin, xmax, ymax, category = i
+            #
+            class_name = cfg.class_name_dic[str(category)]
+            # 画框标记
+            cv2.rectangle(im, (int(xmin), int(ymin)), (int(xmax), int(ymax)), cfg.lable_color[str(category)], 2)
+            cv2.putText(im, class_name, (int(xmin), int(ymin) - 15), cv2.FONT_HERSHEY_SIMPLEX, 0.6,
+                        cfg.lable_color[str(category)], 2)
         # 保存
-        cv2.imwrite(os.path.join(save_path, name + '_' + left + '_' + top + '.' + type), im)
+        cv2.imwrite(os.path.join(save_path, name + '.' + type), im)
 
 
 def letterbox_image(image, size):

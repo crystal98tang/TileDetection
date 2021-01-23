@@ -30,8 +30,9 @@ __C.PATH.origin_train_img_path = '../tcdata/tile_round1_train_20201231/train_img
 __C.PATH.origin_train_anno_path = '../tcdata/tile_round1_train_20201231/train_annos.json/'  # 原始训练集
 #
 __C.PATH.annotation_path = '../user_data/Temp_data/train2.csv'  # 训练集索引文件路径
+
 __C.PATH.patch_path = '../user_data/Temp_data/train_img2'  # 训练集图片路径
-__C.PATH.mult_patch_path = '../user_data/Temp_data/train_img_mult_cutted/'  # 裁剪结果存放目录
+__C.PATH.mult_patch_path = '../user_data/Temp_data/train_img_mult_cutted'  # 裁剪结果存放目录
 #
 __C.PATH.logs = '../logs/'  # 训练后模型保存路径
 __C.PATH.classes_info = '../user_data/model_data/classes.txt'  # 分类标签文件路径

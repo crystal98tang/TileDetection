@@ -1,7 +1,7 @@
 import keras.backend as K
 import numpy as np
 import tensorflow as tf
-
+import os
 from keras.backend.tensorflow_backend import set_session
 from keras.layers import Input, Lambda
 from keras.models import Model
@@ -9,7 +9,7 @@ from keras.optimizers import Adam
 from keras.callbacks import (EarlyStopping, ModelCheckpoint, ReduceLROnPlateau,
                              TensorBoard)
 from codes.core.config import cfg
-from codes.core.utils import get_anchors, get_classes, get_data, get_random_data, read_csv
+from codes.core.utils import get_anchors, get_classes, get_data, get_random_data_one, get_random_data_mult, read_csv
 from codes.core.yolov3 import yolo_body
 from codes.core.loss import yolo_loss
 
@@ -17,7 +17,7 @@ from codes.core.loss import yolo_loss
 # ---------------------------------------------------#
 #   数据生成器
 # ---------------------------------------------------#
-def data_generator(annotation_lines, batch_size, input_shape, anchors, num_classes, random=True):
+def data_generator(annotation_lines, batch_size, input_shape, anchors, num_classes, random=False):
     n = len(annotation_lines)
     i = 0
     while True:
@@ -26,8 +26,13 @@ def data_generator(annotation_lines, batch_size, input_shape, anchors, num_class
         for b in range(batch_size):
             if i == 0:  # 训练完一个循环 再打乱
                 np.random.shuffle(annotation_lines)
-            # image, box = get_data(annotation_lines[i])
-            image, box = get_random_data(annotation_lines[i], input_shape, random=random)
+
+            # patch仅有一个box 都不再做数据增强
+            # image, box = get_random_data_one(annotation_lines[i], input_shape, random=random)
+
+            # patch仅有多个box 都不再做数据增强
+            image, box = get_random_data_mult(annotation_lines[i])
+
             image_data.append(image)
             box_data.append(box)
             i = (i + 1) % n
@@ -154,7 +159,7 @@ def preprocess_true_boxes(true_boxes, input_shape, anchors, num_classes):
 
 config = tf.ConfigProto()
 config.gpu_options.allocator_type = 'BFC'  # A "Best-fit with coalescing" algorithm, simplified from a version of dlmalloc.
-config.gpu_options.per_process_gpu_memory_fraction = 0.9
+config.gpu_options.per_process_gpu_memory_fraction = 0.8
 config.gpu_options.allow_growth = True
 set_session(tf.Session(config=config))
 
@@ -217,7 +222,7 @@ if __name__ == "__main__":
     # ----------------------------------------------------------------------#
     #   验证集的划分
     val_split = cfg.TRAIN.val_split
-    lines = read_csv(cfg.PATH.annotation_path)
+    lines = os.listdir(os.path.join(cfg.PATH.mult_patch_path,"Anotations"))
     np.random.seed(10101)
     np.random.shuffle(lines)
     #
@@ -236,7 +241,7 @@ if __name__ == "__main__":
         #
         print('Train on {} samples, val on {} samples, with batch size {}.'.format(num_train, num_val, batch_size))
         model.fit_generator(
-            data_generator(lines[:num_train], batch_size, input_shape, anchors, num_classes, random=True),
+            data_generator(lines[:num_train], batch_size, input_shape, anchors, num_classes, random=False),
             steps_per_epoch=max(1, num_train // batch_size),
             validation_data=data_generator(lines[num_train:], batch_size, input_shape, anchors, num_classes,
                                            random=False),
@@ -258,7 +263,7 @@ if __name__ == "__main__":
         #
         print('Train on {} samples, val on {} samples, with batch size {}.'.format(num_train, num_val, batch_size))
         model.fit_generator(
-            data_generator(lines[:num_train], batch_size, input_shape, anchors, num_classes, random=True),
+            data_generator(lines[:num_train], batch_size, input_shape, anchors, num_classes, random=False),
             steps_per_epoch=max(1, num_train // batch_size),
             validation_data=data_generator(lines[num_train:], batch_size, input_shape, anchors, num_classes,
                                            random=False),

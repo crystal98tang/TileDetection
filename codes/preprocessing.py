@@ -23,7 +23,7 @@ def BBGT_iou(BBGT, imgRect):
     return iou
 
 
-def split(img, imgname, BBGT, dirdst, subsize, gap, iou_thresh=0.3, ext='.bmp'):
+def split(img, imgname, BBGT, dirdst, subsize, gap, iou_thresh=0.8, ext='.bmp'):
     """
     img:       待裁切图像
     imgname:   待裁切图像名（带扩展名）
@@ -34,17 +34,16 @@ def split(img, imgname, BBGT, dirdst, subsize, gap, iou_thresh=0.3, ext='.bmp'):
     iou_thresh:小于该阈值的BBGT不会保存在对应图像的csv中（在图像过于边缘或与图像无交集）
     ext:       保存图像的格式
     """
-    csv_path = os.path.join(dirdst, 'train_anno' + '.csv')
     img_h, img_w = img.shape[:2]
     top = 0
     reachbottom = False
-    while not reachbottom:
+    while not reachbottom:  # 未到底部边界
         reachright = False
         left = 0
         if top + subsize >= img_h:
             reachbottom = True
             top = max(img_h - subsize, 0)
-        while not reachright:
+        while not reachright:   # 未到右部边界
             if left + subsize >= img_w:
                 reachright = True
                 left = max(img_w - subsize, 0)
@@ -57,7 +56,6 @@ def split(img, imgname, BBGT, dirdst, subsize, gap, iou_thresh=0.3, ext='.bmp'):
             ious = BBGT_iou(BBGT[:, :4].astype('float32'), imgrect)
             BBpatch = BBGT[ious > iou_thresh]
             if len(BBpatch) > 0:  # abandaon images with 0 bboxes
-                print(len(BBpatch))
                 img_name = imgname.split('.')[0]
                 cv2.imwrite(os.path.join(os.path.join(dirdst, 'Images'),
                                          img_name + '_' + str(left) + '_' + str(top) + ext), imgsplit)
@@ -65,8 +63,10 @@ def split(img, imgname, BBGT, dirdst, subsize, gap, iou_thresh=0.3, ext='.bmp'):
                 for bb in BBpatch:
                     x1, y1, x2, y2, target_id = int(bb[0]) - left, int(bb[1]) - top, int(bb[2]) - left, int(
                         bb[3]) - top, int(bb[4])
-                    lines.append([img_name, left, top, x1, y1, x2, y2, target_id])
-                with open(csv_path, 'a+', newline='', encoding='utf-8') as f:
+                    lines.append([img_name+'_'+str(left)+'_'+str(top), x1, y1, x2, y2, target_id])
+                csv_path = os.path.join(dirdst, 'Anotations',
+                                        img_name + '_' + str(left) + '_' + str(top) + '.csv')
+                with open(csv_path, 'w', newline='', encoding='utf-8') as f:
                     writer = csv.writer(f)
                     writer.writerows(lines)
             left += subsize - gap
@@ -79,21 +79,45 @@ def change_size(read_file):
     b = cv2.threshold(img, 60, 255, cv2.THRESH_BINARY)  # 阈值 >60 转为 255
     binary_image = b[1]  # 二值图（三通道）
     binary_image = cv2.cvtColor(binary_image, cv2.COLOR_BGR2GRAY)
-    x = binary_image.shape[0]
-    y = binary_image.shape[1]
+    img_ary = np.array(binary_image)
     edges_x = []
     edges_y = []
-    for i in range(x):
-        for j in range(y):
-            if binary_image[i][j] == 255:
-                edges_x.append(i)
-                edges_y.append(j)
+    cnt = 0
+    """
+    0------bottom------> row
+    |
+    |left             right
+    |
+    v
+    col      top
+    """
+    for col in img_ary:     # 遍历列
+        cnt += 1
+        if col.max() == 255:
+            edges_x.append(cnt)
+    cnt = 0
+    for row in img_ary.T:   # 遍历行
+        cnt += 1
+        if row.max() == 255:
+            edges_y.append(cnt)
+    # 老方法 慢掉牙了 -------------
+    #
+    # x = binary_image.shape[0]
+    # y = binary_image.shape[1]
+    # edges_x = []
+    # edges_y = []
+    # for i in range(x):
+    #     for j in range(y):
+    #         if binary_image[i][j] == 255:
+    #             edges_x.append(i)
+    #             edges_y.append(j)
+    # ------------------------------
     left, right = min(edges_x), max(edges_x)  # 左边界 右边界
     width = right - left  # 宽度
     bottom, top = min(edges_y), max(edges_y)  # 底部 顶部
     height = top - bottom  # 高度
 
-    pre1_picture = image[left:left + width, bottom:bottom + height]  # 图片截取 TODO:可能写反了
+    pre1_picture = image[left:left + width, bottom:bottom + height]  # 图片截取
     return pre1_picture, left, bottom  # 返回图片数据、截取的顶部和左边界尺寸
 
 
@@ -102,18 +126,13 @@ def run(file_list, image_anno, batch, i):
         indexs = image_anno[name]
         #
         im, cut_x, cut_y = change_size(source_path + name)
-        height, width = im.shape[:2]
         BBGT = []
         for tup in indexs:
-            category = tup[2]
-            bbox = tup[1]
+            bbox, category = tup[1], tup[2]
             xmin, ymin, xmax, ymax = bbox
-            xmin, ymin, xmax, ymax = xmin - cut_y, ymin - cut_x, xmax - cut_y, ymax - cut_x     #TODO：可能有问题
+            xmin, ymin, xmax, ymax = xmin - cut_y, ymin - cut_x, xmax - cut_y, ymax - cut_x
             BBGT.append([int(xmin), int(ymin), int(xmax), int(ymax), int(category)])
-            # 统计
-            if Statistics_mode:
-                count_error[category] += 1
-        split(im, name, np.array(BBGT), cfg.PATH.mult_patch_path, 416, 104)
+        split(im, name, np.array(BBGT), cfg.PATH.mult_patch_path, 416, 208)
 
 
 def read_anno_json():
@@ -128,18 +147,17 @@ def read_anno_json():
 
 
 if __name__ == '__main__':
-    source_path = "G:\TileDetection/tcdata/tile_round1_train_20201231/train_imgs/"  # 图片来源路径
+    source_path = cfg.PATH.origin_train_img_path    # "../tcdata/tile_round1_train_20201231/train_imgs/"  # 图片来源路径
     rawLabelFile = "../tcdata/tile_round1_train_20201231/train_annos.json"
     dirdst = cfg.PATH.mult_patch_path
-    count_error = [0, 0, 0, 0, 0, 0, 0]
-    output_label_img_mode = False
-    Statistics_mode = True
     if not os.path.exists(dirdst):
         os.mkdir(dirdst)
     if not os.path.exists(os.path.join(dirdst, 'Images')):
         os.mkdir(os.path.join(dirdst, 'Images'))
+    if not os.path.exists(os.path.join(dirdst, 'Anotations')):
+        os.mkdir(os.path.join(dirdst, 'Anotations'))
     file_list = os.listdir(source_path)
     img_anno = read_anno_json()
     i = 0
-    batch = 10
+    batch = 5387
     run(file_list, img_anno, batch, i)
