@@ -13,11 +13,11 @@ from keras.layers.advanced_activations import LeakyReLU
 from keras.layers.normalization import BatchNormalization
 from keras.models import Model, load_model
 from keras.regularizers import l2
-from codes.core.utils import compose, letterbox_image
+from core.utils import compose, letterbox_image
 
-from codes.core.darknet53 import darknet_body
+from core.darknet53 import darknet_body
 
-from codes.core.config import cfg
+from core.config import cfg
 from PIL import Image, ImageDraw, ImageFont
 
 

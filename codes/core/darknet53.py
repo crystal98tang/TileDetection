@@ -6,7 +6,7 @@ from keras.layers.advanced_activations import LeakyReLU
 from keras.layers.normalization import BatchNormalization
 from keras.regularizers import l2
 
-from codes.core.utils import compose
+from core.utils import compose
 
 #--------------------------------------------------#
 #   单次卷积DarknetConv2D

@@ -1,5 +1,5 @@
 import sys
-sys.path.append(r'../codes/core/')
+sys.path.append(r'./codes/core/')
 ##
 import keras.backend as K
 import numpy as np
