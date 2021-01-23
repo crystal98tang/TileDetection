@@ -39,43 +39,46 @@ class YOLO(object):
         else:
             return "Unrecognized attribute name '" + n + "'"
 
-    # ---------------------------------------------------#
-    #   初始化yolo
-    # ---------------------------------------------------#
     def __init__(self, **kwargs):
+        """
+        初始化yolo
+        :param kwargs:
+        """
         self.__dict__.update(self._defaults)
         self.class_names = self._get_class()
         self.anchors = self._get_anchors()
         self.sess = K.get_session()
         self.boxes, self.scores, self.classes = self.generate()
 
-    # ---------------------------------------------------#
-    #   获得所有的分类
-    # ---------------------------------------------------#
     def _get_class(self):
+        """
+        获得所有的分类
+        :return:
+        """
         classes_path = os.path.expanduser(self.classes_path)
         with open(classes_path) as f:
             class_names = f.readlines()
         class_names = [c.strip() for c in class_names]
         return class_names
 
-    # ---------------------------------------------------#
-    #   获得所有的先验框
-    # ---------------------------------------------------#
     def _get_anchors(self):
+        """
+        获得所有的先验框
+        :return:
+        """
         anchors_path = os.path.expanduser(self.anchors_path)
         with open(anchors_path) as f:
             anchors = f.readline()
         anchors = [float(x) for x in anchors.split(',')]
         return np.array(anchors).reshape(-1, 2)
 
-    # ---------------------------------------------------#
-    #   载入模型
-    # ---------------------------------------------------#
     def generate(self):
+        """
+        载入模型
+        :return:
+        """
         model_path = os.path.expanduser(self.model_path)
         assert model_path.endswith('.h5'), 'Keras model or weights must be a .h5 file.'
-
         # ---------------------------------------------------#
         #   计算先验框的数量和种类的数量
         # ---------------------------------------------------#
@@ -127,21 +130,10 @@ class YOLO(object):
     # ---------------------------------------------------#
     def detect_image(self, image):
         start = timer()
-        # ---------------------------------------------------------#
-        #   给图像增加灰条，实现不失真的resize
-        # ---------------------------------------------------------#
-        new_image_size = (self.model_image_size[1], self.model_image_size[0])
-        boxed_image = letterbox_image(image, new_image_size)
-        image_data = np.array(boxed_image, dtype='float32')
-        image_data /= 255.
-        # ---------------------------------------------------------#
-        #   添加上batch_size维度
-        # ---------------------------------------------------------#
-        image_data = np.expand_dims(image_data, 0)
-
-        # ---------------------------------------------------------#
-        #   将图像输入网络当中进行预测！
-        # ---------------------------------------------------------#
+        image_data = np.array(image, dtype='float32')
+        image_data /= 255.  # 归一化
+        image_data = np.expand_dims(image_data, 0)  # 添加上batch_size维度
+        # 输入网络预测
         out_boxes, out_scores, out_classes = self.sess.run(
             [self.boxes, self.scores, self.classes],
             feed_dict={
