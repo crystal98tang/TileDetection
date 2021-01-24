@@ -92,7 +92,7 @@ class YOLO(object):
         try:
             self.yolo_model = load_model(model_path, compile=False)
         except:
-            self.yolo_model = yolo_body(Input(shape=(None, None, 3)), num_anchors // 3, num_classes)
+            self.yolo_model = yolo_body(Input(shape=(416, 416, 3)), num_anchors // 3, num_classes)
             self.yolo_model.load_weights(self.model_path)
         else:
             assert self.yolo_model.layers[-1].output_shape[-1] == \
@@ -101,18 +101,18 @@ class YOLO(object):
 
         print('{} model, anchors, and classes loaded.'.format(model_path))
 
-        # 画框设置不同的颜色
-        hsv_tuples = [(x / len(self.class_names), 1., 1.)
-                      for x in range(len(self.class_names))]
-        self.colors = list(map(lambda x: colorsys.hsv_to_rgb(*x), hsv_tuples))
-        self.colors = list(
-            map(lambda x: (int(x[0] * 255), int(x[1] * 255), int(x[2] * 255)),
-                self.colors))
+        # # 画框设置不同的颜色
+        # hsv_tuples = [(x / len(self.class_names), 1., 1.)
+        #               for x in range(len(self.class_names))]
+        # self.colors = list(map(lambda x: colorsys.hsv_to_rgb(*x), hsv_tuples))
+        # self.colors = list(
+        #     map(lambda x: (int(x[0] * 255), int(x[1] * 255), int(x[2] * 255)),
+        #         self.colors))
 
-        # 打乱颜色
-        np.random.seed(10101)
-        np.random.shuffle(self.colors)
-        np.random.seed(None)
+        # # 打乱颜色
+        # np.random.seed(10101)
+        # np.random.shuffle(self.colors)
+        # np.random.seed(None)
 
         self.input_image_shape = K.placeholder(shape=(2,))
 
@@ -167,28 +167,28 @@ class YOLO(object):
             bottom = min(image.size[1], np.floor(bottom + 0.5).astype('int32'))
             right = min(image.size[0], np.floor(right + 0.5).astype('int32'))
 
-            # 画框框
-            label = '{} {:.2f}'.format(predicted_class, score)
-            draw = ImageDraw.Draw(image)
-            label_size = draw.textsize(label, font)
-            label = label.encode('utf-8')
-            print(label, top, left, bottom, right)
-
-            if top - label_size[1] >= 0:
-                text_origin = np.array([left, top - label_size[1]])
-            else:
-                text_origin = np.array([left, top + 1])
-
-            for i in range(thickness):
-                draw.rectangle(
-                    [left + i, top + i, right - i, bottom - i],
-                    outline=self.colors[c])
-            draw.rectangle(
-                [tuple(text_origin), tuple(text_origin + label_size)],
-                fill=self.colors[c])
-            draw.text(text_origin, str(label, 'UTF-8'), fill=(0, 0, 0), font=font)
-            del draw
-
+        #     # 画框框
+        #     label = '{} {:.2f}'.format(predicted_class, score)
+        #     draw = ImageDraw.Draw(image)
+        #     label_size = draw.textsize(label, font)
+        #     label = label.encode('utf-8')
+        #     print(label, top, left, bottom, right)
+        #
+        #     if top - label_size[1] >= 0:
+        #         text_origin = np.array([left, top - label_size[1]])
+        #     else:
+        #         text_origin = np.array([left, top + 1])
+        #
+        #     for i in range(thickness):
+        #         draw.rectangle(
+        #             [left + i, top + i, right - i, bottom - i],
+        #             outline=self.colors[c])
+        #     draw.rectangle(
+        #         [tuple(text_origin), tuple(text_origin + label_size)],
+        #         fill=self.colors[c])
+        #     draw.text(text_origin, str(label, 'UTF-8'), fill=(0, 0, 0), font=font)
+        #     del draw
+        #
         end = timer()
         print(end - start)
         return image
