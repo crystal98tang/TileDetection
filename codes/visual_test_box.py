@@ -2,7 +2,7 @@ import csv
 import cv2
 import os
 from codes.core.config import cfg
-from codes.core.utils import read_csv, draw
+from codes.core.utils import read_csv, read_and_draw
 
 """
     批量可视化预测框
@@ -16,6 +16,6 @@ if __name__ == '__main__':
         os.makedirs(save_path)
     #
     list_csv = os.listdir(anno_path)
-    draw(list_csv, anno_path, read_path=img_path, save_path=save_path, type='bmp')    # 画框
+    read_and_draw(list_csv, anno_path, read_path=img_path, save_path=save_path, type='bmp')    # 画框
     print('successful!')
 

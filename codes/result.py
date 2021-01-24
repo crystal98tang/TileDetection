@@ -41,5 +41,4 @@ def result(final_path, results_path):
 
 
 if __name__ == '__main__':
-
     result()

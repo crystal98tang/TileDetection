@@ -1,12 +1,11 @@
 import cv2
 import os
-import datetime
 import tqdm
 import pandas as pd
 import numpy as np
 import csv
 from core.config import cfg
-
+from core.utils import side_black_cut
 
 def BBGT_iou(BBGT, imgRect):
     """
@@ -56,77 +55,25 @@ def split(img, imgname, BBGT, dirdst, subsize, gap, iou_thresh=0.8, ext='.bmp'):
             ious = BBGT_iou(BBGT[:, :4].astype('float32'), imgrect)
             BBpatch = BBGT[ious > iou_thresh]
 
+            # 存储
+            img_name = imgname.split('.')[0]
+            save_name = img_name + '_' + str(left) + '_' + str(top)
+            cv2.imwrite(os.path.join(os.path.join(dirdst, 'Images'), save_name + ext), imgsplit)
+
             if len(BBpatch) > 0:  # abandaon images with 0 bboxes
-                img_name = imgname.split('.')[0]
-                save_name = img_name + '_' + str(left) + '_' + str(top)
                 lines = []
                 for bb in BBpatch:
                     xmin, ymin, xmax, ymax, target_id = int(bb[0]) - left, int(bb[1]) - top, int(bb[2]) - left, \
                                                         int(bb[3]) - top, int(bb[4])
                     lines.append([img_name + '_' + str(left) + '_' + str(top), xmin, ymin, xmax, ymax, target_id])
-
                 csv_path = os.path.join(dirdst, 'Anotations', save_name + '.csv')
-                # 存储
-                cv2.imwrite(os.path.join(os.path.join(dirdst, 'Images'), save_name + ext), imgsplit)
+
                 with open(csv_path, 'w', encoding='utf-8') as f:
                     writer = csv.writer(f)
                     writer.writerows(lines)
 
             left += subsize - gap
         top += subsize - gap
-
-
-def change_size(read_file):
-    """
-    切黑边
-    :param read_file: 图片路径
-    :return: 切后image、所切左边界尺寸、所切上边界尺寸
-    """
-    image = cv2.imread(read_file, 1)  # 读取图片
-    img = cv2.medianBlur(image, 5)  # 中值滤波，去除黑色边际中可能含有的噪声干扰
-    b = cv2.threshold(img, 60, 255, cv2.THRESH_BINARY)  # 阈值 >60 转为 255
-    binary_image = b[1]  # 二值图（三通道）
-    binary_image = cv2.cvtColor(binary_image, cv2.COLOR_BGR2GRAY)
-    img_ary = np.array(binary_image)
-    edges_x = []
-    edges_y = []
-    cnt = 0
-    """
-    0------bottom------> row
-    |
-    |left             right
-    |
-    v
-    col      top
-    """
-    for col in img_ary:  # 遍历列
-        cnt += 1
-        if col.max() == 255:
-            edges_x.append(cnt)
-    cnt = 0
-    for row in img_ary.T:  # 遍历行
-        cnt += 1
-        if row.max() == 255:
-            edges_y.append(cnt)
-    # 老方法 慢掉牙了 -------------
-    #
-    # x = binary_image.shape[0]
-    # y = binary_image.shape[1]
-    # edges_x = []
-    # edges_y = []
-    # for i in range(x):
-    #     for j in range(y):
-    #         if binary_image[i][j] == 255:
-    #             edges_x.append(i)
-    #             edges_y.append(j)
-    # ------------------------------
-    left, right = min(edges_x), max(edges_x)  # 左边界 右边界
-    width = right - left  # 宽度
-    bottom, top = min(edges_y), max(edges_y)  # 底部 顶部
-    height = top - bottom  # 高度
-
-    pre1_picture = image[left:left + width, bottom:bottom + height]  # 图片截取
-    return pre1_picture, left, bottom  # 返回图片数据、截取的顶部和左边界尺寸
 
 
 def run(file_list, image_anno, batch, i):
@@ -140,12 +87,13 @@ def run(file_list, image_anno, batch, i):
     for name in tqdm.tqdm(file_list[batch * i: batch * (i + 1)]):
         indexs = image_anno[name]
         #
-        im, cut_x, cut_y = change_size(source_path + name)
+        image = cv2.imread(source_path + name, 1)  # 读取图片
+        im, x_offset, y_offset = side_black_cut(image)    # 切黑边
         BBGT = []
         for tup in indexs:
             bbox, category = tup[1], tup[2]
             xmin, ymin, xmax, ymax = bbox
-            xmin, ymin, xmax, ymax = xmin - cut_y, ymin - cut_x, xmax - cut_y, ymax - cut_x  # 坐标转换
+            xmin, ymin, xmax, ymax = xmin - y_offset, ymin - x_offset, xmax - y_offset, ymax - x_offset  # 坐标转换
             BBGT.append([int(xmin), int(ymin), int(xmax), int(ymax), int(category)])
         split(im, name, np.array(BBGT), cfg.PATH.mult_patch_path, 416, 208)
 

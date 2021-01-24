@@ -28,6 +28,97 @@ def get_anchors(anchors_path):
     return np.array(anchors).reshape(-1, 2)
 
 
+def split_slide(img, patch_size, gap):
+    """
+    滑动裁切
+    img:   待裁切的高分辨率图像
+    """
+    img_h, img_w = img.shape[:2]
+    top = 0
+    patch_list, xy_offset_list = [], []
+    reachbottom = False
+
+    while not reachbottom:
+        reachright = False
+        left = 0
+        if top + patch_size >= img_h:
+            reachbottom = True
+            top = max(img_h - patch_size, 0)
+        while not reachright:
+            if left + patch_size >= img_w:
+                reachright = True
+                left = max(img_w - patch_size, 0)
+
+            imgsplit = img[top:min(top + patch_size, img_h), left:min(left + patch_size, img_w)]
+
+            if imgsplit.shape[:2] != (patch_size, patch_size):
+                template = np.zeros((patch_size, patch_size, 3), dtype=np.uint8)
+                template[0:imgsplit.shape[0], 0:imgsplit.shape[1]] = imgsplit
+                imgsplit = template
+
+            patch_list.append(imgsplit)
+            xy_offset_list.append([left, top])
+
+            left += patch_size - gap
+
+        top += patch_size - gap
+
+    return patch_list, xy_offset_list
+
+
+def side_black_cut(image):
+    """
+    切黑边
+    :param image: 图片
+    :return: 切后image、所切左边界尺寸、所切上边界尺寸
+    """
+    image = np.array(image)
+    img = cv2.medianBlur(image, 5)  # 中值滤波，去除黑色边际中可能含有的噪声干扰
+    b = cv2.threshold(img, 60, 255, cv2.THRESH_BINARY)  # 阈值 >60 转为 255
+    binary_image = b[1]  # 二值图（三通道）
+    binary_image = cv2.cvtColor(binary_image, cv2.COLOR_BGR2GRAY)
+    img_ary = np.array(binary_image)
+    edges_x = []
+    edges_y = []
+    cnt = 0
+    """
+    0------bottom------> row
+    |
+    |left             right
+    |
+    v
+    col      top
+    """
+    for col in img_ary:  # 遍历列
+        cnt += 1
+        if col.max() == 255:
+            edges_x.append(cnt)
+    cnt = 0
+    for row in img_ary.T:  # 遍历行
+        cnt += 1
+        if row.max() == 255:
+            edges_y.append(cnt)
+    # 老方法 慢掉牙了 -------------
+    #
+    # x = binary_image.shape[0]
+    # y = binary_image.shape[1]
+    # edges_x = []
+    # edges_y = []
+    # for i in range(x):
+    #     for j in range(y):
+    #         if binary_image[i][j] == 255:
+    #             edges_x.append(i)
+    #             edges_y.append(j)
+    # ------------------------------
+    left, right = min(edges_x), max(edges_x)  # 左边界 右边界
+    width = right - left  # 宽度
+    bottom, top = min(edges_y), max(edges_y)  # 底部 顶部
+    height = top - bottom  # 高度
+
+    pre1_picture = image[left:left + width, bottom:bottom + height]  # 图片截取
+    return pre1_picture, left, bottom  # 返回图片数据、截取的顶部和左边界尺寸
+
+
 def rand(a=0, b=1):
     return np.random.rand() * (b - a) + a
 
@@ -218,7 +309,7 @@ def read_csv(path):
     return lines
 
 
-def draw(list_csv, anno_path, read_path, save_path, type='bmp'):
+def read_and_draw(list_csv, anno_path, read_path, save_path, type='.bmp'):
     """
     标记预测框并保存
     :param anno_lines: 标记索引 list[ 'img_name','left','top','x1','y1','x2','y2','catagory' ]
@@ -230,17 +321,34 @@ def draw(list_csv, anno_path, read_path, save_path, type='bmp'):
     for csv in tqdm(list_csv):
         anno_lines = read_csv(os.path.join(anno_path, csv.split(".")[0] + '.csv'))  # 读取标注csv
         im = cv2.imread(os.path.join(read_path, csv.split(".")[0] + '.' + type))
-        for i in anno_lines:
-            name, xmin, ymin, xmax, ymax, category = i
-            #
-            class_name = cfg.class_name_dic[str(category)]
-            # 画框标记
-            cv2.rectangle(im, (int(xmin), int(ymin)), (int(xmax), int(ymax)), cfg.lable_color[str(category)], 2)
-            cv2.putText(im, class_name, (int(xmin), int(ymin) - 15), cv2.FONT_HERSHEY_SIMPLEX, 0.6,
-                        cfg.lable_color[str(category)], 2)
+        name, show_img = draw(im, anno_lines)
         # 保存
-        cv2.imwrite(os.path.join(save_path, name + '.' + type), im)
+        cv2.imwrite(os.path.join(save_path, str(name) + type), show_img)
 
+
+def draw(im, anno_list, name=True, score= False):
+    """
+    标记预测框
+    :param im: 图片
+    :param anno_list: 标记索引 list[ ]
+    :return: None
+    """
+    for i in anno_list:
+        if name:
+            name, xmin, ymin, xmax, ymax, category = i
+            class_name = cfg.class_name_dic[str(category)]
+            label = class_name
+        else:
+            xmin, ymin, xmax, ymax, category, score = i
+            class_name = cfg.class_name_dic[str(category)]
+            label = '{} {:.2f}'.format(class_name, score)
+        # 画框标记
+        cv2.rectangle(im, (int(xmin), int(ymin)), (int(xmax), int(ymax)), cfg.lable_color[str(category)], 2)
+        cv2.putText(im, label, (int(xmin), int(ymin) - 15), cv2.FONT_HERSHEY_SIMPLEX, 0.6,
+                    cfg.lable_color[str(category)], 2)
+    if name:
+        return name, im
+    return im
 
 def letterbox_image(image, size):
     iw, ih = image.size
@@ -253,3 +361,47 @@ def letterbox_image(image, size):
     new_image = Image.new('RGB', size, (128, 128, 128))
     new_image.paste(image, ((w - nw) // 2, (h - nh) // 2))
     return new_image
+
+
+def nms(dets, thresh):
+    """
+    nms
+    :param dets:
+    :param thresh:
+    :return: 保留的索引
+    """
+    if len(dets) == 0:
+        return []
+    dets = np.array(dets)
+    # boxes 位置
+    x1 = dets[:, 0]
+    y1 = dets[:, 1]
+    x2 = dets[:, 2]
+    y2 = dets[:, 3]
+    # boxes scores
+    scores = dets[:, 4]
+
+    areas = (x2 - x1 + 1) * (y2 - y1 + 1)  # 各 box 的面积
+    order = scores.argsort()[::-1]  # boxes 的按照 score 排序
+
+    keep = []  # 记录保留下的 boxes
+    while order.size > 0:
+        i = order[0]  # score 最大的 box 对应的 index
+        keep.append(i)  # 将本轮 score 最大的 box 的 index 保留
+
+        # 计算剩余 boxes 与当前 box 的重叠程度 IoU
+        xx1 = np.maximum(x1[i], x1[order[1:]])
+        yy1 = np.maximum(y1[i], y1[order[1:]])
+        xx2 = np.minimum(x2[i], x2[order[1:]])
+        yy2 = np.minimum(y2[i], y2[order[1:]])
+
+        w = np.maximum(0.0, xx2 - xx1 + 1)  # IoU
+        h = np.maximum(0.0, yy2 - yy1 + 1)
+        inter = w * h
+        ovr = inter / (areas[i] + areas[order[1:]] - inter)
+
+        # 保留 IoU 小于设定阈值的 boxes
+        inds = np.where(ovr <= thresh)[0]
+        order = order[inds + 1]
+
+    return keep

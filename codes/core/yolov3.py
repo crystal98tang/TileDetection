@@ -3,8 +3,9 @@ from functools import wraps
 import numpy as np
 import tensorflow as tf
 import os
-import colorsys
-
+import cv2
+import tqdm
+from PIL import Image
 from timeit import default_timer as timer
 from keras import backend as K
 from keras.layers import (Add, Concatenate, Conv2D, MaxPooling2D, UpSampling2D,
@@ -13,12 +14,10 @@ from keras.layers.advanced_activations import LeakyReLU
 from keras.layers.normalization import BatchNormalization
 from keras.models import Model, load_model
 from keras.regularizers import l2
-from core.utils import compose, letterbox_image
+from core.utils import compose, nms
 
 from core.darknet53 import darknet_body
-
 from core.config import cfg
-from PIL import Image, ImageDraw, ImageFont
 
 
 class YOLO(object):
@@ -29,7 +28,7 @@ class YOLO(object):
         "score": cfg.TEST.score_threshold,
         "iou": cfg.TEST.iou_threshold,
         "max_boxes": cfg.TEST.max_box_num,
-        "model_image_size": cfg.TEST.INPUT_SIZE
+        "model_image_size": cfg.TEST.input_size
     }
 
     @classmethod
@@ -81,18 +80,16 @@ class YOLO(object):
         assert model_path.endswith('.h5'), 'Keras model or weights must be a .h5 file.'
         # ---------------------------------------------------#
         #   计算先验框的数量和种类的数量
-        # ---------------------------------------------------#
         num_anchors = len(self.anchors)
         num_classes = len(self.class_names)
 
         # ---------------------------------------------------------#
         #   载入模型，如果原来的模型里已经包括了模型结构则直接载入。
         #   否则先构建模型再载入
-        # ---------------------------------------------------------#
         try:
             self.yolo_model = load_model(model_path, compile=False)
         except:
-            self.yolo_model = yolo_body(Input(shape=(416, 416, 3)), num_anchors // 3, num_classes)
+            self.yolo_model = yolo_body(Input(shape=(None, None, 3)), num_anchors // 3, num_classes)
             self.yolo_model.load_weights(self.model_path)
         else:
             assert self.yolo_model.layers[-1].output_shape[-1] == \
@@ -100,19 +97,6 @@ class YOLO(object):
                 'Mismatch between model and given anchor and class sizes'
 
         print('{} model, anchors, and classes loaded.'.format(model_path))
-
-        # # 画框设置不同的颜色
-        # hsv_tuples = [(x / len(self.class_names), 1., 1.)
-        #               for x in range(len(self.class_names))]
-        # self.colors = list(map(lambda x: colorsys.hsv_to_rgb(*x), hsv_tuples))
-        # self.colors = list(
-        #     map(lambda x: (int(x[0] * 255), int(x[1] * 255), int(x[2] * 255)),
-        #         self.colors))
-
-        # # 打乱颜色
-        # np.random.seed(10101)
-        # np.random.shuffle(self.colors)
-        # np.random.seed(None)
 
         self.input_image_shape = K.placeholder(shape=(2,))
 
@@ -128,70 +112,42 @@ class YOLO(object):
     # ---------------------------------------------------#
     #   检测图片
     # ---------------------------------------------------#
-    def detect_image(self, image):
+    def detect_image(self, patch_list, xy_offset_list):
         start = timer()
-        image_data = np.array(image, dtype='float32')
-        image_data /= 255.  # 归一化
-        image_data = np.expand_dims(image_data, 0)  # 添加上batch_size维度
-        # 输入网络预测
-        out_boxes, out_scores, out_classes = self.sess.run(
-            [self.boxes, self.scores, self.classes],
-            feed_dict={
-                self.yolo_model.input: image_data,
-                self.input_image_shape: [image.size[1], image.size[0]],
-                K.learning_phase(): 0})
 
-        print('Found {} boxes for {}'.format(len(out_boxes), 'img'))
+        predict = []
+        # batch = 5   # cfg.TEST.batch_size # TODO:考虑batch训练 以提升速度
+        classes_patch = {1: [], 2: [], 3: [], 4: [], 5: [], 6: []}
+        for num in tqdm.tqdm(range(len(patch_list))):
+            # image_data = np.array(patch_list[batch * num: batch * (num + 1)], dtype='float32')
+            image = Image.fromarray(cv2.cvtColor(patch_list[num], cv2.COLOR_BGR2RGB))
+            image_data = np.array(image, dtype='float32')
+            image_data /= 255.  # 归一化
+            image_data = np.expand_dims(image_data, 0)  # 添加上batch_size维度
+            # 输入网络预测
+            out_boxes, out_scores, out_classes = self.sess.run(
+                [self.boxes, self.scores, self.classes],
+                feed_dict={
+                    self.yolo_model.input: image_data,
+                    self.input_image_shape: [cfg.TEST.input_size, cfg.TEST.input_size],
+                    K.learning_phase(): 0})
+            for i, c in list(enumerate(out_classes)):
+                x_offset, y_offset = xy_offset_list[num]
+                xmin, ymin, xmax, ymax = out_boxes[i]
+                xmin, ymin, xmax, ymax = xmin + x_offset, ymin + y_offset, xmax + x_offset, ymax + y_offset  # 坐标转换
+                # 存到对应类
+                classes_patch[c].append([xmin, ymin, xmax, ymax, out_scores[i]])
 
-        # ---------------------------------------------------------#
-        #   设置字体
-        # ---------------------------------------------------------#
-        font = ImageFont.truetype(font='font/simhei.ttf',
-                                  size=np.floor(3e-2 * image.size[1] + 0.5).astype('int32'))
+        for c in classes_patch.keys():
+            idx = nms(classes_patch[c],
+                      cfg.TEST.iou_threshold)  # https://blog.csdn.net/fu6543210/article/details/80380660
+            if idx:
+                [predict.append([classes_patch[c][i][:4], c, classes_patch[c][i][4]]) for i in idx]
 
-        thickness = max((image.size[0] + image.size[1]) // 300, 1)
-
-        for i, c in list(enumerate(out_classes)):
-            predicted_class = self.class_names[c]
-            box = out_boxes[i]
-            score = out_scores[i]
-
-            top, left, bottom, right = box
-            top = top - 5
-            left = left - 5
-            bottom = bottom + 5
-            right = right + 5
-
-            top = max(0, np.floor(top + 0.5).astype('int32'))
-            left = max(0, np.floor(left + 0.5).astype('int32'))
-            bottom = min(image.size[1], np.floor(bottom + 0.5).astype('int32'))
-            right = min(image.size[0], np.floor(right + 0.5).astype('int32'))
-
-        #     # 画框框
-        #     label = '{} {:.2f}'.format(predicted_class, score)
-        #     draw = ImageDraw.Draw(image)
-        #     label_size = draw.textsize(label, font)
-        #     label = label.encode('utf-8')
-        #     print(label, top, left, bottom, right)
-        #
-        #     if top - label_size[1] >= 0:
-        #         text_origin = np.array([left, top - label_size[1]])
-        #     else:
-        #         text_origin = np.array([left, top + 1])
-        #
-        #     for i in range(thickness):
-        #         draw.rectangle(
-        #             [left + i, top + i, right - i, bottom - i],
-        #             outline=self.colors[c])
-        #     draw.rectangle(
-        #         [tuple(text_origin), tuple(text_origin + label_size)],
-        #         fill=self.colors[c])
-        #     draw.text(text_origin, str(label, 'UTF-8'), fill=(0, 0, 0), font=font)
-        #     del draw
-        #
         end = timer()
         print(end - start)
-        return image
+
+        return predict
 
     def close_session(self):
         self.sess.close()
@@ -315,11 +271,11 @@ def yolo_head(feats, anchors, num_classes, input_shape, calc_loss=False):
     grid = K.cast(grid, K.dtype(feats))
 
     # ---------------------------------------------------#
-    #   将预测结果调整成(batch_size,13,13,3,85)
-    #   85可拆分成4 + 1 + 80
+    #   将预测结果调整成(batch_size,13,13,3,33)
+    #   11可拆分成4 + 1 + 6
     #   4代表的是中心宽高的调整参数
     #   1代表的是框的置信度
-    #   80代表的是种类的置信度
+    #   6代表的是种类的置信度
     # ---------------------------------------------------#
     feats = K.reshape(feats, [-1, grid_shape[0], grid_shape[1], num_anchors, num_classes + 5])
 
@@ -437,8 +393,9 @@ def yolo_eval(yolo_outputs,
     # -----------------------------------------------------------#
     #   对每个特征层进行处理
     # -----------------------------------------------------------#
-    for l in range(num_layers):
-        _boxes, _box_scores = yolo_boxes_and_scores(yolo_outputs[l], anchors[anchor_mask[l]], num_classes, input_shape,
+    for layer in range(num_layers):
+        _boxes, _box_scores = yolo_boxes_and_scores(yolo_outputs[layer], anchors[anchor_mask[layer]], num_classes,
+                                                    input_shape,
                                                     image_shape)
         boxes.append(_boxes)
         box_scores.append(_box_scores)
