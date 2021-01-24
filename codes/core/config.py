@@ -28,6 +28,7 @@ __C.lable_color = {
 __C.PATH = edict()
 __C.PATH.origin_train_img_path = '../tcdata/tile_round1_train_20201231/train_imgs/'  # 原始训练集
 __C.PATH.origin_train_anno_path = '../tcdata/tile_round1_train_20201231/train_annos.json/'  # 原始训练集
+__C.PATH.origin_test_img_path = '../tcdata/tile_round1_testA_20201231/testA_imgs/' #测试数据集
 #
 __C.PATH.patch_path = '../user_data/Temp_data/train_img2'  # 训练集图片路径(旧/已弃)
 __C.PATH.mult_patch_path = '../user_data/Temp_data/train_img_mult_cutted'  # 裁剪结果存放目录
