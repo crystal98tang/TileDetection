@@ -8,11 +8,11 @@ import tqdm
 import json
 import cv2
 import numpy as np
-from core.yolov3 import YOLO
+from core.yolov3 import YOLO_batch
 from core.config import cfg
 from core.utils import side_black_cut, split_slide, draw
 
-yolo = YOLO()
+yolo = YOLO_batch()
 source_path = cfg.PATH.origin_test_img_path  # "../tcdata/tile_round1_train_20201231/train_imgs/"  # 图片来源路径
 file_list = os.listdir(source_path)
 
@@ -23,7 +23,7 @@ for img_name in file_list:
     img, x_offset, y_offset = side_black_cut(o_image)  # 切黑边
     patch_list, xy_offset_list = split_slide(img, cfg.TEST.patch_size, cfg.TEST.gap)  # 切Patch
     print(img_name + ' ' + str(len(patch_list)) + ' ' + str(x_offset) + ' ' + str(y_offset))
-    predict = yolo.detect_image(patch_list, xy_offset_list)  # 预测
+    predict = yolo.detect_image_batch(patch_list, xy_offset_list)  # 预测
 
     bbox_c_s = []
     for p in predict:
