@@ -13,7 +13,7 @@ from core.config import cfg
 from core.utils import side_black_cut, split_slide, draw
 
 yolo = YOLO()
-source_path = cfg.PATH.origin_test_img_path  # "../tcdata/tile_round1_train_20201231/train_imgs/"  # 图片来源路径
+source_path = cfg.PATH.temp_test_path  # "../tcdata/tile_round1_train_20201231/train_imgs/"  # 图片来源路径
 file_list = os.listdir(source_path)
 
 final_results = []
@@ -40,17 +40,36 @@ for img_name in file_list:
         predict_img = draw(cv_img, bbox_c_s, name=False)
         cv2.imwrite(os.path.join(cfg.TEST.visual_save_path, img_name), predict_img)
 
-        # {
-        #     "name": "226_46_t20201125133518273_CAM1.jpg",
-        #     "category": 4,
-        #     "bbox": [
-        #         5662,
-        #         2489,
-        #         5671,
-        #         2497
-        #     ],
-        #     "score": 0.130577
-        # },
+    if cfg.TEST.out_result:
+        for ann in bbox_c_s:
+            dict_ann = {}
+            # 设置图片name
+            # 将图片id对应为name
+            dict_ann["name"] = str(img_name)
+            # 设置类别category
+            dict_ann["category"] = ann[4]
+            # 设置bbox
+            bbox = [ann[0], ann[1], ann[2], ann[3]]
+            dict_ann["bbox"] = bbox
+            # 设置置信度score
+            dict_ann["score"] = np.float(ann[5])
+            final_results.append(dict_ann)
 
-# with open('result.json', 'w') as fp:
-#     json.dump(final_results, fp, indent=4, ensure_ascii=False)
+if cfg.TEST.out_result:
+    with open('../prediction_result/result.json', 'w') as fp:
+        json.dump(final_results, fp, indent=4)
+
+
+            # {
+            #     "name": "226_46_t20201125133518273_CAM1.jpg",
+            #     "category": 4,
+            #     "bbox": [
+            #         5662,
+            #         2489,
+            #         5671,
+            #         2497
+            #     ],
+            #     "score": 0.130577
+            # },
+
+

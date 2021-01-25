@@ -40,6 +40,7 @@ __C.PATH.weight_path = '../user_data/model_data/yolo_weights.h5'  # 预训练权
 #
 __C.PATH.test_model_path = '../logs/2021_01_24__19_58last.h5'    # TODO:改这里取模型
 __C.PATH.test_patch_patch = '../user_data/Temp_data/train_img_mult_cutted_test/'  # 测试集图片路径
+__C.PATH.temp_test_path = '../user_data/test/'  # 临时测试路径
 # Train config
 __C.TRAIN = edict()
 
@@ -63,4 +64,5 @@ __C.TEST.gap = 104
 __C.TEST.score_threshold = 0.5
 __C.TEST.iou_threshold = 0.25
 __C.TEST.visual_show = True
+__C.TEST.out_result = True
 __C.TEST.visual_save_path = "../user_data/result_visual"
