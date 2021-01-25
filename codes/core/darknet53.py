@@ -1,10 +1,10 @@
 from functools import wraps
 
-from keras.layers import (Add, Concatenate, Conv2D, MaxPooling2D, UpSampling2D,
+from tensorflow.python.keras.layers import (Add, Concatenate, Conv2D, MaxPooling2D, UpSampling2D,
                           ZeroPadding2D)
-from keras.layers.advanced_activations import LeakyReLU
-from keras.layers.normalization import BatchNormalization
-from keras.regularizers import l2
+from tensorflow.python.keras.layers.advanced_activations import LeakyReLU
+from tensorflow.python.keras.layers.normalization import BatchNormalization
+from tensorflow.python.keras.regularizers import l2
 
 from core.utils import compose
 

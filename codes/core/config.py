@@ -31,7 +31,7 @@ __C.PATH.origin_train_anno_path = '../tcdata/tile_round1_train_20201231/train_an
 __C.PATH.origin_test_img_path = '../tcdata/tile_round1_testA_20201231/testA_imgs/' #测试数据集 "../user_data/Temp_data/train_img_mult_cutted_test/Images"#
 #
 __C.PATH.patch_path = '../user_data/Temp_data/train_img2'  # 训练集图片路径(旧/已弃)
-__C.PATH.mult_patch_path = '../user_data/Temp_data/train_img_mult_cutted'  # 裁剪结果存放目录
+__C.PATH.mult_patch_path = '../user_data/Temp_data/train_img_mult_cutted_total'  # 裁剪结果存放目录
 #
 __C.PATH.logs = '../logs/'  # 训练后模型保存路径
 __C.PATH.classes_info = '../user_data/model_data/classes.txt'  # 分类标签文件路径

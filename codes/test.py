@@ -1,7 +1,14 @@
-import sys
+from tensorflow.compat.v1 import ConfigProto
+from tensorflow.compat.v1 import InteractiveSession
 
-sys.path.append(r'./codes/core/')
-##
+config = ConfigProto()
+config.gpu_options.allow_growth = True
+session = InteractiveSession(config=config)
+
+
+# import sys
+# sys.path.append(r'./codes/core/')
+# ##
 from PIL import Image
 import os
 import tqdm
@@ -13,12 +20,12 @@ from core.config import cfg
 from core.utils import side_black_cut, split_slide, draw
 
 yolo = YOLO()
-source_path = cfg.PATH.temp_test_path  # "../tcdata/tile_round1_train_20201231/train_imgs/"  # 图片来源路径
+source_path = "../tcdata/tile_round1_testA_20201231/testA_imgs"  # "../tcdata/tile_round1_train_20201231/train_imgs/"  # 图片来源路径
 file_list = os.listdir(source_path)
 
 final_results = []
 
-for img_name in file_list:
+for img_name in tqdm.tqdm(file_list):
     o_image = cv2.imread(os.path.join(source_path, img_name), 1)  # 读取原始
     img, x_offset, y_offset = side_black_cut(o_image)  # 切黑边
     patch_list, xy_offset_list = split_slide(img, cfg.TEST.patch_size, cfg.TEST.gap)  # 切Patch

@@ -1,3 +1,6 @@
+import sys
+sys.path.append(r'./codes/core/')
+##
 import cv2
 import os
 import tqdm
@@ -112,7 +115,7 @@ def read_anno_json(src):
 if __name__ == '__main__':
     source_path = cfg.PATH.origin_train_img_path  # "../tcdata/tile_round1_train_20201231/train_imgs/"  # 图片来源路径
     rawLabelFile = "../tcdata/tile_round1_train_20201231/train_annos.json"
-    dirdst = "../user_data/test/"  # cfg.PATH.mult_patch_path
+    dirdst = "../user_data/Temp_data/train_img_mult_cutted_total"  # cfg.PATH.mult_patch_path
     if not os.path.exists(dirdst):
         os.mkdir(dirdst)
     if not os.path.exists(os.path.join(dirdst, 'Images')):
@@ -121,6 +124,6 @@ if __name__ == '__main__':
         os.mkdir(os.path.join(dirdst, 'Anotations'))
     file_list = os.listdir(source_path)
     img_anno = read_anno_json(rawLabelFile)
-    i = 1
-    batch = 10
+    i = 0
+    batch = 3000
     run(file_list, img_anno, batch, i)
