@@ -51,11 +51,11 @@ def split(imgname, dirsrc, dirdst, subsize, gap, iou_thresh=0.3, ext='.bmp'):
     csv_path = os.path.join(dirdst, 'train_anno' + '.csv')
     BBGT = get_bbox(txt_path)
     img_h, img_w = img.shape[:2]
-    top = 0
+    top = -gap
     reachbottom = False
     while not reachbottom:
         reachright = False
-        left = 0
+        left = -gap
         if top + subsize >= img_h:
             reachbottom = True
             top = max(img_h - subsize, 0)

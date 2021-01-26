@@ -22,7 +22,7 @@ def BBGT_iou(BBGT, imgRect):
     return iou
 
 
-def split(img, imgname, BBGT, dirdst, subsize, gap, iou_thresh=0.8, ext='.bmp'):
+def train_split(img, imgname, BBGT, dirdst, subsize, gap, iou_thresh=0.8, ext='.bmp'):
     """
     img:       待裁切图像
     imgname:   待裁切图像名（带扩展名）
@@ -58,9 +58,9 @@ def split(img, imgname, BBGT, dirdst, subsize, gap, iou_thresh=0.8, ext='.bmp'):
             # 存储
             img_name = imgname.split('.')[0]
             save_name = img_name + '_' + str(left) + '_' + str(top)
-            cv2.imwrite(os.path.join(os.path.join(dirdst, 'Images'), save_name + ext), imgsplit)
 
             if len(BBpatch) > 0:  # abandaon images with 0 bboxes
+                cv2.imwrite(os.path.join(os.path.join(dirdst, 'Images'), save_name + ext), imgsplit)
                 lines = []
                 for bb in BBpatch:
                     xmin, ymin, xmax, ymax, target_id = int(bb[0]) - left, int(bb[1]) - top, int(bb[2]) - left, \
@@ -84,6 +84,7 @@ def run(file_list, image_anno, batch, i):
     :param batch: 批处理数量
     :param i: 第i轮批处理
     """
+    gap = 208
     for name in tqdm.tqdm(file_list[batch * i: batch * (i + 1)]):
         indexs = image_anno[name]
         #
@@ -93,9 +94,9 @@ def run(file_list, image_anno, batch, i):
         for tup in indexs:
             bbox, category = tup[1], tup[2]
             xmin, ymin, xmax, ymax = bbox
-            xmin, ymin, xmax, ymax = xmin - y_offset, ymin - x_offset, xmax - y_offset, ymax - x_offset  # 坐标转换
+            xmin, ymin, xmax, ymax = xmin - y_offset, ymin - x_offset, xmax - y_offset, ymax - x_offset
             BBGT.append([int(xmin), int(ymin), int(xmax), int(ymax), int(category)])
-        split(im, name, np.array(BBGT), cfg.PATH.mult_patch_path, 416, 208)
+        train_split(im, name, np.array(BBGT), cfg.PATH.mult_patch_path, 416, gap)
 
 
 def read_anno_json(src):
@@ -112,7 +113,7 @@ def read_anno_json(src):
 if __name__ == '__main__':
     source_path = cfg.PATH.origin_train_img_path  # "../tcdata/tile_round1_train_20201231/train_imgs/"  # 图片来源路径
     rawLabelFile = "../tcdata/tile_round1_train_20201231/train_annos.json"
-    dirdst = "../user_data/test/"  # cfg.PATH.mult_patch_path
+    dirdst = cfg.PATH.mult_patch_path
     if not os.path.exists(dirdst):
         os.mkdir(dirdst)
     if not os.path.exists(os.path.join(dirdst, 'Images')):
@@ -121,6 +122,6 @@ if __name__ == '__main__':
         os.mkdir(os.path.join(dirdst, 'Anotations'))
     file_list = os.listdir(source_path)
     img_anno = read_anno_json(rawLabelFile)
-    i = 1
-    batch = 10
+    i = 6   #run
+    batch = 800
     run(file_list, img_anno, batch, i)

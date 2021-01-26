@@ -223,13 +223,16 @@ if __name__ == "__main__":
     #   验证集的划分
     val_split = cfg.TRAIN.val_split
     lines = os.listdir(os.path.join(cfg.PATH.mult_patch_path, "Anotations"))
-    np.random.seed(10101)
-    np.random.shuffle(lines)
+    # np.random.seed(10101)
+    # np.random.shuffle(lines)
     #
     np.random.seed(None)
     num_val = int(len(lines) * val_split)
     num_train = len(lines) - num_val
     # ------------------------------------------------------#
+
+    model.load_weights("../logs/100_last.h5")
+
     if True:
         Init_epoch = 0
         Freeze_epoch = cfg.TRAIN.freeze_epoch

@@ -11,13 +11,13 @@ class_name_dic = cfg.class_name_dic
 lable_color = cfg.lable_color
 #
 count_error = [0,0,0,0,0,0,0]
-output_label_img_mode = False
+output_label_img_mode = True
 Statistics_mode = True
 time_start = 0
-rawImgDir='../tcdata/tile_round1_train_20201231/train_imgs/'
-rawLabelFile="../tcdata/tile_round1_train_20201231/train_annos.json"
-anno_xls_dir='../user_data/label_xls/'
-anno_label_dir='../user_data/label_img/'
+rawImgDir='../tcdata/tile_round1_testA_20201231/testA_img/'
+rawLabelFile="../prediction_result/result.json"
+anno_xls_dir='../user_data/result_label_xls_fin/'
+anno_label_dir='../user_data/result_label_img_fin/'
 #
 if Statistics_mode:
     time_start = time.time()  # 开始计时
@@ -32,14 +32,14 @@ print(df)
 #
 image_ann={}    # { img_name : [label1, label2, ……]}
 for tup in df.itertuples():
-    name = tup[5]
+    name = tup[3]
     if name not in image_ann:
         image_ann[name] = []
     image_ann[name].append(tup)     # 加
 #
 for name in image_ann.keys():
     indexs = image_ann[name]
-    height, width = indexs[0][3], indexs[0][4]
+    # height, width = indexs[0][3], indexs[0][4]
     #
     if output_label_img_mode:
         im = cv2.imread(os.path.join(rawImgDir, name))
@@ -54,7 +54,7 @@ for name in image_ann.keys():
             count_error[category] += 1
         # 画框标记
         if output_label_img_mode:
-            cv2.rectangle(im, (int(xmin), int(ymin)), (int(xmax), int(ymax)), lable_color[str(category)], 2)
+            cv2.rectangle(im, (int(xmin), int(ymin)), (int(xmax), int(ymax)), lable_color[str(category)], 1)
             cv2.putText(im, class_name, (int(xmin), int(ymin) - 15), cv2.FONT_HERSHEY_SIMPLEX, 0.6, lable_color[str(category)],2)
     #
     (filename, jpg) = os.path.splitext(name)
