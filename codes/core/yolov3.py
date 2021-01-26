@@ -7,13 +7,13 @@ import cv2
 import tqdm
 from PIL import Image
 from timeit import default_timer as timer
-from keras import backend as K
-from keras.layers import (Add, Concatenate, Conv2D, MaxPooling2D, UpSampling2D,
+from tensorflow.python.keras import backend as K
+from tensorflow.python.keras.layers import (Add, Concatenate, Conv2D, MaxPooling2D, UpSampling2D,
                           ZeroPadding2D, Input)
-from keras.layers.advanced_activations import LeakyReLU
-from keras.layers.normalization import BatchNormalization
-from keras.models import Model, load_model
-from keras.regularizers import l2
+from tensorflow.python.keras.layers.advanced_activations import LeakyReLU
+from tensorflow.python.keras.layers.normalization import BatchNormalization
+from tensorflow.python.keras.models import Model, load_model
+from tensorflow.python.keras.regularizers import l2
 from core.utils import compose, nms
 
 from core.darknet53 import darknet_body
