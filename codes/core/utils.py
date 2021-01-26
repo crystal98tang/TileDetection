@@ -28,13 +28,31 @@ def get_anchors(anchors_path):
     return np.array(anchors).reshape(-1, 2)
 
 
-def split_slide(img, patch_size, gap):
+def contrast_img(img1, c, b):
+    """
+    调节亮度
+    :param img1:
+    :param c:
+    :param b:
+    :return:
+    """
+    rows, cols, channels = img1.shape
+    blank = np.zeros([rows, cols, channels], img1.dtype)
+    dst = cv2.addWeighted(img1, c, blank, 1-c, b)
+    return dst
+
+
+def split_slide(img, patch_size, gap, up=True):
     """
     滑动裁切
     img:   待裁切的高分辨率图像
     """
+    # init_left = -gap  # TODO：追加边缘切图
+    # init_top = -gap
+
     img_h, img_w = img.shape[:2]
     top = 0
+
     patch_list, xy_offset_list = [], []
     reachbottom = False
 
@@ -53,8 +71,14 @@ def split_slide(img, patch_size, gap):
 
             if imgsplit.shape[:2] != (patch_size, patch_size):
                 template = np.zeros((patch_size, patch_size, 3), dtype=np.uint8)
+                template[:, :] = 50
                 template[0:imgsplit.shape[0], 0:imgsplit.shape[1]] = imgsplit
                 imgsplit = template
+
+            # cv2.imshow("patch split", imgsplit)   # debug:
+
+            # if up:
+            #     imgsplit = contrast_img(imgsplit, 1.2, 3)   # 提升亮度
 
             patch_list.append(imgsplit)
             xy_offset_list.append([left, top])
@@ -66,13 +90,40 @@ def split_slide(img, patch_size, gap):
     return patch_list, xy_offset_list
 
 
+def longestConsecutive(list):
+    """
+    求最长连续子串
+    :param list:
+    :return:
+    """
+    start = 0
+    length = 0
+    max_start = 0
+    max_length = 0
+    for i in range(len(list) - 1):
+        if list[i] == list[i + 1] - 1:
+            length += 1
+        else:
+            if length > max_length:
+                max_start = start
+                max_length = length
+            start = i
+            length = 0
+    # 最大子list即原始list
+    if length > max_length:
+        max_start = start
+        max_length = length
+    #
+    return list[max_start], list[max_start + max_length], max_length
+
+
 def side_black_cut(image):
     """
     切黑边
     :param image: 图片
     :return: 切后image、所切左边界尺寸、所切上边界尺寸
     """
-    image = np.array(image)
+    # image = np.array(image)
     img = cv2.medianBlur(image, 5)  # 中值滤波，去除黑色边际中可能含有的噪声干扰
     b = cv2.threshold(img, 60, 255, cv2.THRESH_BINARY)  # 阈值 >60 转为 255
     binary_image = b[1]  # 二值图（三通道）
@@ -110,12 +161,17 @@ def side_black_cut(image):
     #             edges_x.append(i)
     #             edges_y.append(j)
     # ------------------------------
-    left, right = min(edges_x), max(edges_x)  # 左边界 右边界
-    width = right - left  # 宽度
-    bottom, top = min(edges_y), max(edges_y)  # 底部 顶部
-    height = top - bottom  # 高度
+    # left, right = min(edges_x), max(edges_x)  # 左边界 右边界
+    # width = right - left  # 宽度
+    # bottom, top = min(edges_y), max(edges_y)  # 底部 顶部
+    # height = top - bottom  # 高度
+    # ------------------------------
+
+    left, right, width = longestConsecutive(edges_x)  # 左边界 右边界
+    bottom, top, height = longestConsecutive(edges_y)  # 底部 顶部
 
     pre1_picture = image[left:left + width, bottom:bottom + height]  # 图片截取
+    # cv2.imshow("cut black", pre1_picture)     # debug:
     return pre1_picture, left, bottom  # 返回图片数据、截取的顶部和左边界尺寸
 
 
@@ -326,7 +382,7 @@ def read_and_draw(list_csv, anno_path, read_path, save_path, type='.bmp'):
         cv2.imwrite(os.path.join(save_path, str(name) + type), show_img)
 
 
-def draw(im, anno_list, name=True, score= False):
+def draw(im, anno_list, name=True, score=False):
     """
     标记预测框
     :param im: 图片
@@ -349,6 +405,7 @@ def draw(im, anno_list, name=True, score= False):
     if name:
         return name, im
     return im
+
 
 def letterbox_image(image, size):
     iw, ih = image.size
