@@ -38,7 +38,8 @@ __C.PATH.classes_info = '../user_data/model_data/classes.txt'  # 分类标签文
 __C.PATH.anchors_info = '../user_data/model_data/anchors.txt'  # 锚点文件路径
 __C.PATH.weight_path = '../user_data/model_data/yolo_weights.h5'  # 预训练权值文件
 #
-__C.PATH.test_model_path = '../logs/100_last.h5'    # TODO:改这里取模型
+__C.PATH.test_model_path = '../logs/100_last.h5'    # TODO:改这里取v3模型
+cfg.PATH.test_model_v4_path = '../logs/100_last.h5' # TODO:改这里取v4模型
 # __C.PATH.test_patch_patch = '../user_data/Temp_data/train_img_mult_cutted_test/'  # 测试集图片路径
 # __C.PATH.temp_test_path = '../user_data/test/'  # 临时测试路径
 # Train config

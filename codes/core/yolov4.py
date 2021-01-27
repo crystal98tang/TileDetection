@@ -1,17 +1,174 @@
 from functools import wraps
 
+import os
+from PIL import Image
+import cv2
 import numpy as np
 import tensorflow as tf
 from keras import backend as K
 from keras.layers import (Add, Concatenate, Conv2D, MaxPooling2D, UpSampling2D,
-                          ZeroPadding2D)
+                          ZeroPadding2D, Input)
 from keras.layers.advanced_activations import LeakyReLU
 from keras.layers.normalization import BatchNormalization
-from keras.models import Model
+from keras.models import Model, load_model
 from keras.regularizers import l2
-from core.utils import compose
+from core.utils import compose, nms
 
 from core.CSPdarknet53 import darknet_body
+from core.config import cfg
+
+# --------------------------------------------#
+#   使用自己训练好的模型预测需要修改2个参数
+#   model_path和classes_path都需要修改！
+#   如果出现shape不匹配，一定要注意
+#   训练时的model_path和classes_path参数的修改
+# --------------------------------------------#
+class YOLO_v4(object):
+    _defaults = {
+        "model_path": cfg.PATH.test_model_v4_path,
+        "anchors_path": cfg.PATH.anchors_info,
+        "classes_path": cfg.PATH.classes_info,
+        "score": cfg.TEST.score_threshold,
+        "iou": cfg.TEST.iou_threshold,
+        "max_boxes": cfg.TEST.max_box_num,
+        # 显存比较小可以使用416x416
+        # 显存比较大可以使用608x608
+        "model_image_size": (416, 416)
+    }
+
+    @classmethod
+    def get_defaults(cls, n):
+        if n in cls._defaults:
+            return cls._defaults[n]
+        else:
+            return "Unrecognized attribute name '" + n + "'"
+
+    # ---------------------------------------------------#
+    #   初始化yolo
+    # ---------------------------------------------------#
+    def __init__(self, **kwargs):
+        self.__dict__.update(self._defaults)
+        self.class_names = self._get_class()
+        self.anchors = self._get_anchors()
+        self.sess = K.get_session()
+        self.boxes, self.scores, self.classes = self.generate()
+
+    # ---------------------------------------------------#
+    #   获得所有的分类
+    # ---------------------------------------------------#
+    def _get_class(self):
+        classes_path = os.path.expanduser(self.classes_path)
+        with open(classes_path) as f:
+            class_names = f.readlines()
+        class_names = [c.strip() for c in class_names]
+        return class_names
+
+    # ---------------------------------------------------#
+    #   获得所有的先验框
+    # ---------------------------------------------------#
+    def _get_anchors(self):
+        anchors_path = os.path.expanduser(self.anchors_path)
+        with open(anchors_path) as f:
+            anchors = f.readline()
+        anchors = [float(x) for x in anchors.split(',')]
+        return np.array(anchors).reshape(-1, 2)
+
+    # ---------------------------------------------------#
+    #   载入模型
+    # ---------------------------------------------------#
+    def generate(self):
+        model_path = os.path.expanduser(self.model_path)
+        assert model_path.endswith('.h5'), 'Keras model or weights must be a .h5 file.'
+
+        # ---------------------------------------------------#
+        #   计算先验框的数量和种类的数量
+        # ---------------------------------------------------#
+        num_anchors = len(self.anchors)
+        num_classes = len(self.class_names)
+
+        # ---------------------------------------------------------#
+        #   载入模型，如果原来的模型里已经包括了模型结构则直接载入。
+        #   否则先构建模型再载入
+        # ---------------------------------------------------------#
+        try:
+            self.yolo_model = load_model(model_path, compile=False)
+        except:
+            self.yolo_model = yolo_body(Input(shape=(None, None, 3)), num_anchors // 3, num_classes)
+            self.yolo_model.load_weights(self.model_path)
+        else:
+            assert self.yolo_model.layers[-1].output_shape[-1] == \
+                   num_anchors / len(self.yolo_model.output) * (num_classes + 5), \
+                'Mismatch between model and given anchor and class sizes'
+
+        print('{} model, anchors, and classes loaded.'.format(model_path))
+
+        self.input_image_shape = K.placeholder(shape=(2,))
+
+        # ---------------------------------------------------------#
+        #   在yolo_eval函数中，我们会对预测结果进行后处理
+        #   后处理的内容包括，解码、非极大抑制、门限筛选等
+        # ---------------------------------------------------------#
+        boxes, scores, classes = yolo_eval(self.yolo_model.output, self.anchors,
+                                           num_classes, self.input_image_shape, max_boxes=self.max_boxes,
+                                           score_threshold=self.score, iou_threshold=self.iou)
+        return boxes, scores, classes
+
+    # ---------------------------------------------------#
+    #   检测图片
+    # ---------------------------------------------------#
+    def detect_image(self, patch_list, xy_offset_list):
+        # start = timer()       # debug
+
+        predict = []
+        # batch = 5   # cfg.TEST.batch_size # TODO:考虑batch训练 以提升速度
+        classes_patch = {1: [], 2: [], 3: [], 4: [], 5: [], 6: []}
+        for num in range(len(patch_list)):
+            # image_data = np.array(patch_list[batch * num: batch * (num + 1)], dtype='float32')
+            image = Image.fromarray(cv2.cvtColor(patch_list[num], cv2.COLOR_BGR2RGB))
+            image_data = np.array(image, dtype='float32')
+            image_data /= 255.  # 归一化
+            image_data = np.expand_dims(image_data, 0)  # 添加上batch_size维度
+            # 输入网络预测
+            out_boxes, out_scores, out_classes = self.sess.run(
+                [self.boxes, self.scores, self.classes],
+                feed_dict={
+                    self.yolo_model.input: image_data,
+                    self.input_image_shape: [cfg.TEST.input_size, cfg.TEST.input_size],
+                    K.learning_phase(): 0})
+            for i, c in list(enumerate(out_classes)):
+                x_offset, y_offset = xy_offset_list[num]
+                xmin, ymin, xmax, ymax = out_boxes[i]
+                xmin, ymin, xmax, ymax = ymin + x_offset, xmin + y_offset, ymax + x_offset, xmax + y_offset  # 坐标转换
+                # 存到对应类
+                classes_patch[c + 1].append([xmin, ymin, xmax, ymax, out_scores[i], c])
+
+        # 全图
+        tmp_nms_test = []
+        for c in classes_patch.values():
+            if c:
+                for i in c:
+                    tmp_nms_test.append(i)
+        idx_all = nms(tmp_nms_test, thresh=0.2)
+        [predict.append([tmp_nms_test[i][:4], tmp_nms_test[i][5], tmp_nms_test[i][4]]) for i in idx_all]
+
+        # [predict.append([tmp_nms_test[i][:4], tmp_nms_test[i][5], tmp_nms_test[i][4]]) for i in range(len(tmp_nms_test))]
+
+        # # 按类分
+        # for c in classes_patch.keys():
+        #     idx = nms(classes_patch[c],
+        #               thresh=0.1)  # https://blog.csdn.net/fu6543210/article/details/80380660
+        #     if idx:
+        #         for i in idx:
+        #             predict.append([classes_patch[c][i][:4], c, classes_patch[c][i][4]])
+        #             # [predict.append([classes_patch[c][i][:4], c, classes_patch[c][i][4]]) for i in idx]
+
+        # end = timer()         # debug
+        # print(end - start)    # debug
+
+        return predict
+
+    def close_session(self):
+        self.sess.close()
 
 
 # --------------------------------------------------#

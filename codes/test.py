@@ -9,10 +9,11 @@ import json
 import cv2
 import numpy as np
 from core.yolov3 import YOLO
+from core.yolov4 import YOLO_v4
 from core.config import cfg
 from core.utils import side_black_cut, split_slide, draw
 
-yolo = YOLO()
+yolo = YOLO_v4()
 source_path = "../tcdata/tile_round1_testA_20201231/testA_img"  # 图片来源路径
 save_json_path = "../user_data/result/"
 visual_save_path = "../user_data/result_visual/"
