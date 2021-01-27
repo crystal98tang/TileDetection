@@ -13,7 +13,7 @@ from keras.optimizers import Adam
 from keras.callbacks import (EarlyStopping, ModelCheckpoint, ReduceLROnPlateau,
                              TensorBoard)
 from core.config import cfg
-from core.utils import get_anchors, get_classes, get_random_data_mult, read_csv
+from core.utils import get_anchors, get_classes, get_random_data_mult, WarmUpCosineDecayScheduler
 from core.yolov4 import yolo_body
 from core.loss import yolo_loss
 
@@ -167,7 +167,7 @@ set_session(tf.Session(config=config))
 
 if __name__ == "__main__":
     # 训练后的模型保存路径
-    log_dir = cfg.PATH.logs
+    log_dir = os.path.join(cfg.PATH.logs, 'v4')
     # 权值文件
     weights_path = cfg.PATH.weight_path
     # 输入的shape大小
@@ -180,9 +180,18 @@ if __name__ == "__main__":
     # 一共有多少类和多少先验框
     num_classes = len(class_names)
     num_anchors = len(anchors)
+    #------------------------------------------------------#
+    #   Yolov4的tricks应用
+    #   mosaic 马赛克数据增强 True or False
+    #   实际测试时mosaic数据增强并不稳定，所以默认为False
+    #   Cosine_scheduler 余弦退火学习率 True or False
+    #   label_smoothing 标签平滑 0.01以下一般 如0.01、0.005
+    #------------------------------------------------------#
+    mosaic = False
+    Cosine_scheduler = False
+    label_smoothing = 0.005
 
     K.clear_session()
-
     # ------------------------------------------------------#
     # 创建yolo模型
     image_input = Input(shape=(None, None, 3))
@@ -226,8 +235,8 @@ if __name__ == "__main__":
     #   验证集的划分
     val_split = cfg.TRAIN.val_split
     lines = os.listdir(os.path.join(cfg.PATH.mult_patch_path, "Anotations"))
-    np.random.seed(10101)
-    np.random.shuffle(lines)
+    # np.random.seed(10101)
+    # np.random.shuffle(lines)
     #
     np.random.seed(None)
     num_val = int(len(lines) * val_split)
@@ -239,7 +248,7 @@ if __name__ == "__main__":
 
     if True:
         Init_epoch = 0
-        Freeze_epoch = 50
+        Freeze_epoch = 1
         batch_size = 8
         learning_rate_base = 1e-3
 
@@ -265,11 +274,11 @@ if __name__ == "__main__":
 
         print('Train on {} samples, val on {} samples, with batch size {}.'.format(num_train, num_val, batch_size))
         model.fit_generator(
-            data_generator(lines[:num_train], batch_size, input_shape, anchors, num_classes, mosaic=mosaic,
+            data_generator(lines[:num_train], batch_size, input_shape, anchors, num_classes,
                            random=True),
             steps_per_epoch=max(1, num_train // batch_size),
             validation_data=data_generator(lines[num_train:], batch_size, input_shape, anchors, num_classes,
-                                           mosaic=False, random=False),
+                                           random=False),
             validation_steps=max(1, num_val // batch_size),
             epochs=Freeze_epoch,
             initial_epoch=Init_epoch,
@@ -279,8 +288,8 @@ if __name__ == "__main__":
     for i in range(freeze_layers): model_body.layers[i].trainable = True
 
     if True:
-        Freeze_epoch = 50
-        Epoch = 100
+        Freeze_epoch = 1
+        Epoch = 2
         batch_size = 2
         learning_rate_base = 1e-4
 
@@ -306,11 +315,11 @@ if __name__ == "__main__":
 
         print('Train on {} samples, val on {} samples, with batch size {}.'.format(num_train, num_val, batch_size))
         model.fit_generator(
-            data_generator(lines[:num_train], batch_size, input_shape, anchors, num_classes, mosaic=mosaic,
+            data_generator(lines[:num_train], batch_size, input_shape, anchors, num_classes,
                            random=True),
             steps_per_epoch=max(1, num_train // batch_size),
             validation_data=data_generator(lines[num_train:], batch_size, input_shape, anchors, num_classes,
-                                           mosaic=False, random=False),
+                                            random=False),
             validation_steps=max(1, num_val // batch_size),
             epochs=Epoch,
             initial_epoch=Freeze_epoch,
